@@ -48,17 +48,23 @@ def prepare_nt_coding_key(K_genomes_snps_map,indiv_genot_file,nt_map_file):
         sid_nt_map = {}
         for sid, kg_nt in izip(kg_sids, kg_nts):
             snp = sid_dict[sid]
-            if snp!='--' and kg_nts not in ambig_nts:
-                if snp[0]=='-' and (snp[1]== kg_nt[1] or snp[1]==kg_nt[0]):
-                    sid_nt_map[sid]={'nt':kg_nt, }
+            if kg_nts not in ambig_nts:
+                # All possible (and allowed) nucleotides strings 
+                ntm = {}
+                ntm['--']=-9
+                ntm['-'+kg_nt[0]]=-9
+                ntm['-'+kg_nt[1]]=-9
+                ntm[kg_nt[0]+'-']=-9
+                ntm[kg_nt[1]+'-']=-9
+                ntm[kg_nt[0]+kg_nt[0]]=0
+                ntm[kg_nt[1]+kg_nt[0]]=1
+                ntm[kg_nt[0]+kg_nt[1]]=1
+                ntm[kg_nt[1]+kg_nt[1]]=2
+                sid_nt_map[sid]={'nt':kg_nt, 'ntm':ntm}
         
         nts = []
-        #FIXME: Nucleotide coding missing...
         
         genome_dict[chrom]={'positions':cg['positions'][...], 'ids':cg['ids'][...],'snps':snps}
-    # 1. parse genotype.
-    # 2. parse K genomes, create a dict with genotype, nucleotide information, etc.
-    # 3. Determine and store the nt coding.
 
 
 
