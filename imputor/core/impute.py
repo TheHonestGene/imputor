@@ -79,7 +79,7 @@ def prepare_nt_coding_key(K_genomes_snps_map, indiv_genot_file, nt_map_file):
     return snp_map_dict
         
 
-def parse_hdf5_genotype(h5file, nt_map_file):
+def parse_hdf5_genotype(h5file, nt_map_file, out_h5file):
     print 'Loading NT map from file: %s'%nt_map_file
     f = open(nt_map_file, 'r')
     snp_map_dict = cPickle.load(f)
@@ -88,7 +88,10 @@ def parse_hdf5_genotype(h5file, nt_map_file):
     print 'Parsing individual genotype: %s'%h5file
     h5f = h5py.File(h5file,'r')
     chromosomes = range(1,23) 
-    genome_dict = {}
+    
+    #prepare output file
+    oh5f = h5py.File(out_h5file)
+    
     tot_num_parsed_snps = 0
     for chrom in chromosomes:
         print '\nWorking on chromosome %d'%chrom
@@ -119,22 +122,184 @@ def parse_hdf5_genotype(h5file, nt_map_file):
                 continue
             snps[d['snp_i']] = nt_val
             num_parsed_ok += 1
+            
         print "%d SNPs weren't found and %d SNPs had unrecognizable nucleotides"%(num_not_found,num_misunderstood) 
         print "%d SNPs were parsed ok."%num_parsed_ok
         tot_num_parsed_snps +=num_parsed_ok
         #Not sure what information we need, perhaps only the SNPs?
-        genome_dict[chrom]={'snps':snps, } #'sids':chrom_dict['sids'], 'positions':chrom_dict['positions'], 'nts':chrom_dict['nts']}
+        
+        assert len(snps)==len(chrom_dict['sids'])==len(chrom_dict['positions'])==len(chrom_dict['nts']), '..bug'
+        #Store information
+        cg = oh5f.create_group(chrom_str)
+        cg.create_dataset('snps', data=snps)
+        cg.create_dataset('sids', data=chrom_dict['sids'])
+        cg.create_dataset('positions', data=chrom_dict['positions'])
+        cg.create_dataset('nts', data=chrom_dict['nts'])
+        #Also positions..
+        
+        #genome_dict[chrom]={'snps':snps, } #'sids':chrom_dict['sids'], 'positions':chrom_dict['positions'], 'nts':chrom_dict['nts']}
     print 'In total %d SNPs were parsed.'%tot_num_parsed_snps
     h5f.close()
-    return genome_dict
+    oh5f.close()
+    #return genome_dict
     
     
+def gen_unrelated_eur_1k_data(out_file='/Users/bjarnivilhjalmsson/data/1Kgenomes/1K_genomes_v3_EUR_unrelated.hdf5'):
+    h5f = h5py.File('/Users/bjarnivilhjalmsson/data/1Kgenomes/1K_genomes_v3.hdf5')
+    eur_filter = h5f['indivs']['continent'][...]=='EUR'
+    num_indivs = sp.sum(eur_filter)
+    K = sp.zeros((num_indivs,num_indivs), dtype='single')
+    num_snps = 0
+    print 'Calculating kinship'
+    for chrom in range(1,23):
+        print 'Working on Chromosome %d'%chrom
+        chrom_str = 'chr%d'%chrom
+        print 'Loading SNPs'
+        snps = h5f[chrom_str]['raw_snps'][...]
+        #filter non-europeans.
+        print 'Filtering non-European individuals'
+        snps = snps[:,eur_filter]
+        print 'Filtering monomorphic SNPs'
+        snp_stds = sp.std(snps,1)
+        mono_morph_filter = snp_stds>0
+        snps = snps[mono_morph_filter]
+        snp_stds = snp_stds[mono_morph_filter]
+        print 'Normalizing SNPs'
+        snp_means = sp.mean(snps,1)
+        norm_snps = (snps - snp_means[sp.newaxis].T)/snp_stds[sp.newaxis].T
+        print 'Updating kinship'        
+        K += sp.dot(norm_snps.T,norm_snps)
+        num_snps += len(norm_snps)
+    K = K/float(num_snps)
+    print 'Kinship calculation done using %d SNPs\n'%num_snps
+    
+    
+    #Filter individuals
+    print 'Filtering individuals'
+    keep_indiv_set = set(range(num_indivs))
+    for i in range(num_indivs):
+        if i in keep_indiv_set:
+            for j in range(i+1,num_indivs):
+                if K[i,j]>0.05:
+                    if j in keep_indiv_set:
+                        keep_indiv_set.remove(j)
+    keep_indivs = list(keep_indiv_set)
+    keep_indivs.sort()
+    print 'Retained %d individuals\n'%len(keep_indivs)
+
+    #Store in new file
+    print 'Now storing data.'
+    oh5f = h5py.File(out_file,'w')
+    indiv_ids = h5f['indivs']['indiv_ids'][eur_filter]
+    indiv_ids = indiv_ids[keep_indivs]
+    oh5f.create_dataset('indiv_ids',data =indiv_ids)    
+    for chrom in range(1,23):
+        print 'Working on Chromosome %d'%chrom
+        chrom_str = 'chr%d'%chrom
+        snps = h5f[chrom_str]['raw_snps'][...]
+        #filter non-europeans.
+        snps = snps[:,eur_filter]
+        snps = snps[:,keep_indivs]
+        snp_stds = sp.std(snps,1)
+        mono_morph_filter = snp_stds>0
+        snps = snps[mono_morph_filter]
+        cg = oh5f.create_group(chrom_str)
+        
+        cg.create_dataset('snps',data=snps)
+
+        snp_stds = snp_stds[mono_morph_filter]
+        snp_means = sp.mean(snps,1)
+        cg.create_dataset('snp_means',data=snp_means[sp.newaxis].T)
+        cg.create_dataset('snp_stds',data=snp_stds[sp.newaxis].T)
+       
+        snp_ids = h5f[chrom_str]['snp_ids'][...]
+        snp_ids = snp_ids[mono_morph_filter]
+        cg.create_dataset('snp_ids',data=snp_ids)
+        
+        positions = h5f[chrom_str]['positions'][...]
+        positions = positions[mono_morph_filter]
+        cg.create_dataset('positions',data=positions)
+        
+        eur_maf = h5f[chrom_str]['eur_maf'][...]
+        eur_maf = eur_maf[mono_morph_filter]
+        cg.create_dataset('eur_maf',data=eur_maf)
+        
+        nts = h5f[chrom_str]['nts'][...]
+        nts = nts[mono_morph_filter]
+        cg.create_dataset('nts',data=nts)
+        
+        centimorgans = h5f[chrom_str]['centimorgans'][...]
+        cg.create_dataset('centimorgans',data=centimorgans)
+        
+        centimorgan_rates = h5f[chrom_str]['centimorgan_rates'][...]
+        cg.create_dataset('centimorgan_rates',data=centimorgan_rates)
+        
+    oh5f.close()
+    h5f.close()
+   
+    
+def calc_ld(ref_genotype_file, ld_matrix_h5file, window_size = 200, kgenomes_file = '/Users/bjarnivilhjalmsson/data/1Kgenomes/1K_genomes_v3_EUR_unrelated.hdf5'):
+    """
+    
+    """
+    #Load 1K genome
+    kg_h5f = h5py.File(kgenomes_file)
+    
+    #load genotype.
+    g_h5f = h5py.File(ref_genotype_file)
+
+    mat_h5f = h5py.File(ld_matrix_h5file)
+
+    #Figure out overlap (all genotype SNPs should be in the 1K genomes data)..
+    for chrom in range(1,23):
+        print 'Working on Chromosome %d'%chrom
+        chrom_str1 = 'chr%d'%chrom
+        kg_cg = kg_h5f[chrom_str1]
+        kg_sids = kg_cg['snp_ids'][...]
+
+        chrom_str2 = 'Chr%d'%chrom
+        g_cg = g_h5f[chrom_str2]
+        g_sids = g_cg['sids'][...]
+        
+        kg_filter = sp.in1d(kg_sids,g_sids)
+        
+        assert sp.sum(kg_filter)==len(g_sids), '..bug...'
+        assert sp.all(kg_sids[kg_filter]==g_sids), '...bug'
+        
+        snps = kg_cg['snps'][...]
+        snps = snps[kg_filter]
+        
+        snp_stds = kg_cg['snp_stds'][...]
+        snp_stds = snp_stds[kg_filter]
+
+        snp_means = kg_cg['snp_means'][...]
+        snp_means = snp_means[kg_filter]
+        
+        norm_snps = sp.array((snps - snp_means)/snp_stds,dtype='single')
+        
+        #Iterate over SNPs and calculate LD
+        num_snps,num_indivs = snps.shape
+        ld_mat = sp.zeros((num_snps-1,window_size),dtype='single')
+    
+        for snp_i in range(num_snps-1):
+            end_i = min(snp_i+window_size,num_snps)
+            ld_mat[snp_i] = sp.dot(norm_snps[snp_i],(norm_snps[snp_i+1,end_i]).T)/num_indivs
+        
+        #Store things
+        mat_cg = mat_h5f.create_group(chrom_str1)
+        mat_cg.create_dataset('ld_mat',data=ld_mat)
+    
+
 def impute_23_and_genome(genome_dict):
     """
-    Liu & Stephens fast imputation of the 23andme genome.
     """
+
+    #For each SNP
+    #  Identify a (small) window of neighboring SNPs.
+    #  Identify the missing SNPs and non-missing SNPs.
+    #  Invert the matrix, etc.
+    #  Predict genotype
     
-    #For each of the SNPs, there's a dict
     
     
 #For debugging purposes
@@ -142,5 +307,7 @@ if __name__=='__main__':
 #     prepare_nt_coding_key('/Users/bjarnivilhjalmsson/data/1Kgenomes/snps.hdf5',
 #                           '/Users/bjarnivilhjalmsson/REPOS/imputor/tests/data/test_genotype.hdf5',
 #                           '/Users/bjarnivilhjalmsson/data/tmp/nt_map.pickled')
-    parse_hdf5_genotype('/Users/bjarnivilhjalmsson/REPOS/imputor/tests/data/test_genotype.hdf5',
-                        '/Users/bjarnivilhjalmsson/data/tmp/nt_map.pickled')
+#     parse_hdf5_genotype('/Users/bjarnivilhjalmsson/REPOS/imputor/tests/data/test_genotype.hdf5',
+#                         '/Users/bjarnivilhjalmsson/data/tmp/nt_map.pickled',
+#                         '/Users/bjarnivilhjalmsson/REPOS/imputor/tests/data/test_out_genotype.hdf5')
+    calc_ld('/Users/bjarnivilhjalmsson/REPOS/imputor/tests/data/test_out_genotype.hdf5', '/Users/bjarnivilhjalmsson/REPOS/imputor/tests/data/ld_mat.hdf5')
