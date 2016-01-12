@@ -98,7 +98,7 @@ def parse_hdf5_genotype(h5file, nt_map_file, out_h5file):
     tot_num_parsed_snps = 0
     for chrom in chromosomes:
         print '\nWorking on chromosome %d'%chrom
-        kg_chrom_str = 'chrom_%d'%chrom
+        kg_chrom_str = 'chr%d'%chrom
         chrom_str = 'Chr%d'%chrom
         cg = h5f[chrom_str]
         sids = cg['ids'][...]
@@ -222,9 +222,6 @@ def gen_unrelated_eur_1k_data(out_file='/Users/bjv/Dropbox/Cloud_folder/Data/1Kg
         snps = snps[nt_filter]
         
         cg = oh5f.create_group(chrom_str)
-        
-        
-        
         cg.create_dataset('snps',data=snps)
 
         snp_stds = snp_stds[mono_morph_filter]
@@ -265,7 +262,7 @@ def gen_unrelated_eur_1k_data(out_file='/Users/bjv/Dropbox/Cloud_folder/Data/1Kg
     h5f.close()
    
     
-def calc_ld(ref_genotype_file, ld_matrix_h5file, window_size = 200, kgenomes_file = '/Users/bjv/Dropbox/Cloud_folder/Data/1Kgenomes/1K_genomes_v3_EUR_unrelated.hdf5'):
+def calc_ld(ref_genotype_file, ld_matrix_h5file, window_size = 200, kgenomes_file = '/Users/bjv/Dropbox/Cloud_folder/Data/1Kgenomes/1K_genomes_v3_EUR_unrelated2.hdf5'):
     """
     
     """
@@ -310,7 +307,10 @@ def calc_ld(ref_genotype_file, ld_matrix_h5file, window_size = 200, kgenomes_fil
     
         for snp_i in range(num_snps-1):
             end_i = min(snp_i+window_size,num_snps)
-            ld_mat[snp_i] = sp.dot(norm_snps[snp_i],(norm_snps[snp_i+1,end_i]).T)/num_indivs
+            #Deal with boundaries..
+            if snp_i+window_size>num_snps:
+                
+            ld_mat[snp_i] = sp.dot(norm_snps[snp_i],(norm_snps[snp_i+1:end_i+1]).T)/num_indivs
         
         #Store things
         mat_cg = mat_h5f.create_group(chrom_str1)
@@ -334,14 +334,14 @@ def impute_23_and_genome(genome_dict):
 #For debugging purposes
 if __name__=='__main__':
 #     Filterrelated indivs
-    gen_unrelated_eur_1k_data()
+#     gen_unrelated_eur_1k_data()
     
-    prepare_nt_coding_key('/Users/bjv/Dropbox/Cloud_folder/Data/1Kgenomes/1K_genomes_v3_EUR_unrelated.hdf5',
-                          '/Users/bjv/REPOS/imputor/tests/data/test_genotype.hdf5',
-                          '/Users/bjv/Dropbox/Cloud_folder/tmp/nt_map.pickled')
-    parse_hdf5_genotype('/Users/bjv/REPOS/imputor/tests/data/test_genotype.hdf5',
-                         '/Users/bjv/Dropbox/Cloud_folder/tmp/nt_map.pickled',
-                         '/Users/bjv/REPOS/imputor/tests/data/test_out_genotype.hdf5')
+#     prepare_nt_coding_key('/Users/bjv/Dropbox/Cloud_folder/Data/1Kgenomes/1K_genomes_v3_EUR_unrelated2.hdf5',
+#                           '/Users/bjv/REPOS/imputor/tests/data/test_genotype.hdf5',
+#                           '/Users/bjv/Dropbox/Cloud_folder/tmp/nt_map.pickled')
+#     parse_hdf5_genotype('/Users/bjv/REPOS/imputor/tests/data/test_genotype.hdf5',
+#                          '/Users/bjv/Dropbox/Cloud_folder/tmp/nt_map.pickled',
+#                          '/Users/bjv/REPOS/imputor/tests/data/test_out_genotype.hdf5')
     calc_ld('/Users/bjv/REPOS/imputor/tests/data/test_out_genotype.hdf5', '/Users/bjv/REPOS/imputor/tests/data/ld_mat.hdf5')
     
     
