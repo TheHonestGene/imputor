@@ -2,6 +2,7 @@
 Code to impute the 23andme genome for the necessary SNPs.
 """
 import h5py
+import sys
 import scipy as sp
 from scipy import linalg
 import gzip
@@ -322,7 +323,7 @@ def calc_ld(ref_genotype_file, ld_prefix, window_size = 200, kgenomes_file = 'Da
             ld_mats.append(D)
             boundaries.append([start_i,end_i])
 
-        ld_dict={'Ds':ld_mats,'boundaries':boundaries}
+        ld_dict={'Ds':ld_mats,'boundaries':boundaries, 'snp_means':snp_means, 'snp_stds':snp_stds}
         #Store things
         
         with gzip.open(ld_prefix+'_'+str(window_size)+'_'+chrom_str2+'.pickled.gz','w') as f:
@@ -360,6 +361,8 @@ def impute_23_and_genome(genotype_file=repos_dir+'imputor/tests/data/test_out_ge
         imputed_snps = snps.copy()
 
         Ds = ld_dict['Ds']
+        snp_means = ld_dict['snp_means']
+        snp_stds = ld_dict['snp_stds']
         num_snps = len(snps)
         assert len(Ds)==num_snps,'..bug'
         num_snps_imputed = 0
@@ -378,6 +381,10 @@ def impute_23_and_genome(genotype_file=repos_dir+'imputor/tests/data/test_out_ge
                 end_i = min(snp_i+(window_size/2)+1,num_snps)
                 
                 reg_snps = snps[start_i:end_i]
+                reg_snp_means = snp_means[start_i:end_i]
+                reg_snp_means = reg_snp_means.flatten()
+                reg_snp_stds = snp_stds[start_i:end_i]
+                reg_snp_stds = reg_snp_stds.flatten()
                 
                 loc_i = snp_i-start_i
                 D_i = D[loc_i] 
@@ -390,6 +397,9 @@ def impute_23_and_genome(genotype_file=repos_dir+'imputor/tests/data/test_out_ge
                 
                 assert sp.sum(ok_filter)<len(reg_snps), '..bug'
                 ok_reg_snps = reg_snps[ok_filter]
+                ok_reg_snp_means = reg_snp_means[ok_filter]
+                ok_reg_snp_stds = reg_snp_stds[ok_filter]
+                ok_reg_norm_snps = (ok_reg_snps-ok_reg_snp_means) /ok_reg_snp_stds
                 
                 ok_D = (D[ok_filter])[:,ok_filter]
                 ok_D_i = D_i[ok_filter]
@@ -397,6 +407,10 @@ def impute_23_and_genome(genotype_file=repos_dir+'imputor/tests/data/test_out_ge
             
                 ok_D_inv = linalg.pinv(ok_D)
                 imputed_snp = sp.dot(ok_D_i,sp.dot(ok_D_inv,ok_reg_snps))
+                
+                snp_mean = snp_means[snp_i][0]
+                snp_std = snp_stds[snp_i][0]
+                imputed_snp = imputed_snp*snp_std+snp_mean
                 if imputed_snp<0:
                     imputed_snp=0
                 elif imputed_snp>2:
@@ -427,7 +441,8 @@ if __name__=='__main__':
 #                          cloud_dir+'tmp/nt_map.pickled',
 #                          repos_dir+'imputor/tests/data/test_out_genotype.hdf5')
 #     
+    window_size = int(sys.argv[1])
     
-#     calc_ld(repos_dir+'imputor/tests/data/test_out_genotype.hdf5', repos_dir+'imputor/tests/data/ld_dict',window_size=30)
-    impute_23_and_genome(window_size=20)
+    calc_ld(repos_dir+'imputor/tests/data/test_out_genotype.hdf5', repos_dir+'imputor/tests/data/ld_dict',window_size=window_size)
+    impute_23_and_genome(window_size=window_size)
     
