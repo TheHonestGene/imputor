@@ -334,15 +334,15 @@ def calc_ld(ref_genotype_file, ld_prefix, window_size = 200, kgenomes_file = 'Da
 
 
 def impute_23_and_genome(genotype_file=repos_dir+'imputor/tests/data/test_out_genotype.hdf5', 
-                         ld_prefix=repos_dir+'imputor/tests/data/ld_dict', window_size = 50,
-                         validation_missing_rate=0.01, min_ld_r2_thres = 0.05):
+                         ld_prefix=repos_dir+'imputor/tests/data/ld_dict', window_size = 40,
+                         validation_missing_rate=0.02, min_ld_r2_thres = 0.02):
     """
-    validation_missing_rate: The fraction of SNPs used to estimate the imputation accuracy.  1% seems enough.  
+    validation_missing_rate: The fraction of SNPs used to estimate the imputation accuracy.  2% seems enough to get SE<1%.  
                              A smaller number will increase speed.
                              
     min_ld_r2_thres: A minimum LD r2 value for SNPs to be used to impute from.  SNPs with large R2 are more informative for the imputation.
                      SNPs with r2 values close to 0 are effectively inconsequential for the imputation and can be left out 
-                     (which also speeds up the imputation).  Default is 0.05.
+                     (which also speeds up the imputation).  Default is 0.02.
     """
 
     g_h5f = h5py.File(genotype_file,'r')
@@ -457,9 +457,9 @@ def impute_23_and_genome(genotype_file=repos_dir+'imputor/tests/data/test_out_ge
 
 def window_size_plot():
     pred_r2s = []
-    window_sizes = [10,20,30,40,50,60,70,80,90,100]
+    window_sizes = [4,10,20,30,40,50,60,70,80,90,100]
     for window_size in window_sizes:
-        calc_ld(repos_dir+'imputor/tests/data/test_out_genotype.hdf5', repos_dir+'imputor/tests/data/ld_dict',window_size=window_size)
+#         calc_ld(repos_dir+'imputor/tests/data/test_out_genotype.hdf5', repos_dir+'imputor/tests/data/ld_dict',window_size=window_size)
         d = impute_23_and_genome(window_size=window_size)
         pred_r2s.append(d['pred_r2'])
     print pred_r2s
@@ -486,7 +486,7 @@ if __name__=='__main__':
 #     
 #     window_size = int(sys.argv[1])
 #     
-#     calc_ld(repos_dir+'imputor/tests/data/test_out_genotype.hdf5', repos_dir+'imputor/tests/data/ld_dict',window_size=window_size)
-#     impute_23_and_genome(window_size=window_size)
-    window_size_plot()
+#     calc_ld(repos_dir+'imputor/tests/data/test_out_genotype.hdf5', repos_dir+'imputor/tests/data/ld_dict',window_size=4)
+#     impute_23_and_genome(window_size=4)
+     window_size_plot()
     
