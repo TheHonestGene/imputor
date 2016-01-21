@@ -50,7 +50,10 @@ def gen_unrelated_eur_1k_data(out_file='/Users/bjarnivilhjalmsson/data/1Kgenomes
     keep_indivs.sort()
     print 'Retained %d individuals\n'%len(keep_indivs)
 
-    #Store in new file
+    #Map prefix
+    KGenomes_prefix='/Users/bjarnivilhjalmsson/data/1Kgenomes/', 
+    
+    #Filter ambiguous SNPs and store in new file
     print 'Now storing data.'
     oh5f = h5py.File(out_file,'w')
     indiv_ids = h5f['indivs']['indiv_ids'][eur_filter]
@@ -66,6 +69,32 @@ def gen_unrelated_eur_1k_data(out_file='/Users/bjarnivilhjalmsson/data/1Kgenomes
         snp_stds = sp.std(snps,1)
         mono_morph_filter = snp_stds>0
         snps = snps[mono_morph_filter]
+        
+        #Load map and double check..
+        print 'Load  SNP map to get NTs and filter ambiguous SNPs'
+        fn = '%sALL_1000G_phase1integrated_v3_chr%d_impute.legend.gz'%(KGenomes_prefix,chrom_i)
+        ok_sids = set()
+        sids_nt_map = {}
+        with gzip.open(fn) as f:
+            f.next()
+            line_i=0
+            for line in f:
+                l = line.split()
+                nt1=l[2]
+                nt2=l[3]
+                if nt1 not in valid_nts:
+                    continue
+                if nt2 not in valid_nts:
+                    continue
+                if filter_ambiguous and (nt1,nt2) in ambig_nts:
+                    continue
+                line_i +=1
+                ok_sids.add(l[0])
+                sids_nt_map[l[0]]=(nt1,nt2)
+        
+        #FINISH!!!!
+
+        
         cg = oh5f.create_group(chrom_str)
         
         cg.create_dataset('snps',data=snps)
@@ -100,8 +129,9 @@ def gen_unrelated_eur_1k_data(out_file='/Users/bjarnivilhjalmsson/data/1Kgenomes
     oh5f.close()
     h5f.close()
    
-def gen_kg_snp_map():
-    ##
+
+
+
 
 #Coding key
 def prepare_nt_coding_key(K_genomes_snps_map, indiv_genot_file, nt_map_file):
@@ -115,7 +145,7 @@ def prepare_nt_coding_key(K_genomes_snps_map, indiv_genot_file, nt_map_file):
     num_snps = 0
     for chrom in chromosomes:
         print 'Working on chromosome %d'%chrom
-        kg_chrom_str = 'chrom_%d'%chrom
+        kg_chrom_str = 'chr%d'%chrom
         chrom_str = 'Chr%d'%chrom
         
         #Get SNPs from genotype
@@ -126,7 +156,7 @@ def prepare_nt_coding_key(K_genomes_snps_map, indiv_genot_file, nt_map_file):
         
         #Get SNP IDs from 1K genomes
         kcg = kgf[kg_chrom_str]
-        kg_sids = kcg['sids'][...]
+        kg_sids = kcg['snp_ids'][...]
         
         #Determine overlap between SNPs..
         kg_filter = sp.in1d(kg_sids,sids)
@@ -170,3 +200,10 @@ def prepare_nt_coding_key(K_genomes_snps_map, indiv_genot_file, nt_map_file):
     f.close()
     return snp_map_dict
         
+#For debugging purposes
+if __name__=='__main__':        
+    prepare_nt_coding_key('/Users/bjarnivilhjalmsson/data/1Kgenomes/1K_genomes_v3_EUR_unrelated.hdf5',
+                          '/Users/bjarnivilhjalmsson/REPOS/imputor/tests/data/test_genotype.hdf5',
+                          '/Users/bjarnivilhjalmsson/data/tmp/nt_map2.pickled')
+
+

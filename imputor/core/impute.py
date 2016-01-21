@@ -2,7 +2,11 @@
 Code to impute the 23andme genome for the necessary SNPs.
 """
 import h5py
+import sys
 import scipy as sp
+from scipy import linalg
+import gzip
+import random
 from itertools import *
 ambig_nts = set([('A', 'T'), ('T', 'A'), ('G', 'C'), ('C', 'G')])
 opp_strand_dict = {'A':'T', 'G':'C', 'T':'A', 'C':'G'}
@@ -11,6 +15,10 @@ Kg_nt_decoder = {1:'A', 2:'T', 3:'C', 4:'G', }
 import gzip
 import cPickle
 
+import pylab
+
+cloud_dir = '/Users/bjarnivilhjalmsson/Dropbox/Cloud_folder/'
+repos_dir = '/Users/bjarnivilhjalmsson/REPOS/'
 
 
 #Coding key
@@ -108,7 +116,7 @@ def parse_hdf5_genotype(h5file, nt_map_file, out_h5file):
         chrom_dict = snp_map_dict[kg_chrom_str]
         sid_nt_map = chrom_dict['sid_nt_map']
         n = len(sid_nt_map)
-        snps = sp.repeat(-9, n)
+        snps = sp.repeat(-9, n) #Creating the SNP with fixed size 
         num_not_found = 0
         num_misunderstood = 0
         num_parsed_ok = 0
@@ -147,8 +155,8 @@ def parse_hdf5_genotype(h5file, nt_map_file, out_h5file):
     #return genome_dict
     
     
-def gen_unrelated_eur_1k_data(out_file='/Users/bjv/Dropbox/Cloud_folder/Data/1Kgenomes/1K_genomes_v3_EUR_unrelated2.hdf5'):
-    h5f = h5py.File('/Users/bjv/Dropbox/Cloud_folder/Data/1Kgenomes/1K_genomes_v3.hdf5')
+def gen_unrelated_eur_1k_data(out_file='Data/1Kgenomes/1K_genomes_v3_EUR_unrelated2.hdf5'):
+    h5f = h5py.File(cloud_dir+'Data/1Kgenomes/1K_genomes_v3.hdf5')
     eur_filter = h5f['indivs']['continent'][...]=='EUR'
     num_indivs = sp.sum(eur_filter)
     K = sp.zeros((num_indivs,num_indivs), dtype='single')
@@ -198,7 +206,7 @@ def gen_unrelated_eur_1k_data(out_file='/Users/bjv/Dropbox/Cloud_folder/Data/1Kg
 
     #Store in new file
     print 'Now storing data.'
-    oh5f = h5py.File(out_file,'w')
+    oh5f = h5py.File(cloud_dir+out_file,'w')
     indiv_ids = h5f['indivs']['indiv_ids'][eur_filter]
     indiv_ids = indiv_ids[keep_indivs]
     oh5f.create_dataset('indiv_ids',data =indiv_ids)    
@@ -262,17 +270,17 @@ def gen_unrelated_eur_1k_data(out_file='/Users/bjv/Dropbox/Cloud_folder/Data/1Kg
     h5f.close()
    
     
-def calc_ld(ref_genotype_file, ld_matrix_h5file, window_size = 200, kgenomes_file = '/Users/bjv/Dropbox/Cloud_folder/Data/1Kgenomes/1K_genomes_v3_EUR_unrelated2.hdf5'):
+def calc_ld(ref_genotype_file, ld_prefix, window_size = 200, kgenomes_file = 'Data/1Kgenomes/1K_genomes_v3_EUR_unrelated2.hdf5'):
     """
     
     """
+    print 'Calculating LD'
     #Load 1K genome
-    kg_h5f = h5py.File(kgenomes_file)
+    kg_h5f = h5py.File(cloud_dir+kgenomes_file,'r')
     
     #load genotype.
-    g_h5f = h5py.File(ref_genotype_file)
+    g_h5f = h5py.File(ref_genotype_file,'r')
 
-    mat_h5f = h5py.File(ld_matrix_h5file)
 
     #Figure out overlap (all genotype SNPs should be in the 1K genomes data)..
     for chrom in range(1,23):
@@ -303,45 +311,182 @@ def calc_ld(ref_genotype_file, ld_matrix_h5file, window_size = 200, kgenomes_fil
         
         #Iterate over SNPs and calculate LD
         num_snps,num_indivs = snps.shape
-        ld_mat = sp.zeros((num_snps-1,window_size),dtype='single')
+#         ld_mat = sp.zeros((num_snps-1,window_size-1),dtype='single')
+        ld_mats = []
+        boundaries = []
     
-        for snp_i in range(num_snps-1):
-            end_i = min(snp_i+window_size,num_snps)
-            #Deal with boundaries..
-            if snp_i+window_size>num_snps:
-                
-            ld_mat[snp_i] = sp.dot(norm_snps[snp_i],(norm_snps[snp_i+1:end_i+1]).T)/num_indivs
-        
+        for snp_i in range(num_snps):
+            start_i = max(0,snp_i-window_size/2)
+            end_i = min(snp_i+(window_size/2)+1,num_snps)
+            
+            X = norm_snps[start_i:end_i]
+            D =  sp.dot(X,X.T)/num_indivs
+            
+            ld_mats.append(D)
+            boundaries.append([start_i,end_i])
+
+        ld_dict={'Ds':ld_mats,'boundaries':boundaries, 'snp_means':snp_means, 'snp_stds':snp_stds}
         #Store things
-        mat_cg = mat_h5f.create_group(chrom_str1)
-        mat_cg.create_dataset('ld_mat',data=ld_mat)
-    
+        
+        with gzip.open(ld_prefix+'_'+str(window_size)+'_'+chrom_str2+'.pickled.gz','w') as f:
+            cPickle.dump(ld_dict, f, protocol=2)
+            
 
-def impute_23_and_genome(genome_dict):
+
+def impute_23_and_genome(genotype_file=repos_dir+'imputor/tests/data/test_out_genotype.hdf5', 
+                         ld_prefix=repos_dir+'imputor/tests/data/ld_dict', window_size = 40,
+                         validation_missing_rate=0.02, min_ld_r2_thres = 0.02):
     """
-    
+    validation_missing_rate: The fraction of SNPs used to estimate the imputation accuracy.  2% seems enough to get SE<1%.  
+                             A smaller number will increase speed.
+                             
+    min_ld_r2_thres: A minimum LD r2 value for SNPs to be used to impute from.  SNPs with large R2 are more informative for the imputation.
+                     SNPs with r2 values close to 0 are effectively inconsequential for the imputation and can be left out 
+                     (which also speeds up the imputation).  Default is 0.02.
     """
 
-    #For each SNP
-    #  Identify a (small) window of neighboring SNPs.
-    #  Identify the missing SNPs and non-missing SNPs.
-    #  Invert the matrix, etc.
-    #  Predict genotype
-    pass
+    g_h5f = h5py.File(genotype_file,'r')
     
+    pred_snps = []
+    true_snps = []
+    for chrom in range(1,23):
+        print 'Working on Chromosome %d'%chrom
+
+        #Loading pre-calculated LD matrices (Note that these could perhaps be stored more efficiently.)
+        chrom_str = 'Chr%d'%chrom
+        with gzip.open(ld_prefix+'_'+str(window_size)+'_'+chrom_str+'.pickled.gz','r') as f:
+            ld_dict = cPickle.load(f)
+
+        g_cg = g_h5f[chrom_str]
+        
+        #Loading data 
+        snps = g_cg['snps'][...]
+        Ds = ld_dict['Ds']
+        snp_means = ld_dict['snp_means']
+        snp_stds = ld_dict['snp_stds']
+        
+        #The snp vector to be returned
+        imputed_snps = snps.copy()
+
+        num_snps = len(snps)
+        assert len(Ds)==num_snps,'..bug'
+        num_snps_imputed = 0
+        
+        for snp_i in range(num_snps):
+            
+            if random.random()<validation_missing_rate and snps[snp_i] !=-9:
+                #Picking random SNPs with genotype information to estimate imputation accuracy.
+                true_snp = snps[snp_i]
+                snps[snp_i] = -9
+            else:
+                true_snp=-9
+                
+            if snps[snp_i] ==-9:
+                #Pull out LD matrix
+                D = Ds[snp_i]
+                
+                #Determining the boundaries of the region.
+                start_i = max(0,snp_i-window_size/2)
+                end_i = min(snp_i+(window_size/2)+1,num_snps)
+                
+                #Obtaining the SNPs in the region, on which the imputation (together with LD) is based.
+                reg_snps = snps[start_i:end_i]
+                reg_snp_means = snp_means[start_i:end_i]
+                reg_snp_means = reg_snp_means.flatten()
+                reg_snp_stds = snp_stds[start_i:end_i]
+                reg_snp_stds = reg_snp_stds.flatten()
+                
+                #The LD vector for the SNP to be imputed.
+                loc_i = snp_i-start_i
+                D_i = D[loc_i] 
+
+                #Filter SNPs that have missing genotypes
+                ok_filter = reg_snps !=-9
+                
+                #Filtering SNPs that are not in LD with the SNP to be imputed.  This saves time and may improve accuracy.
+                ld_filter = (D_i**2>min_ld_r2_thres)
+                if sp.any(ok_filter*ld_filter):
+                    ok_filter = ok_filter*ld_filter
+                
+                #Filtering the genotypes in the LD region. 
+                assert sp.sum(ok_filter)<len(reg_snps), '..bug'
+                ok_reg_snps = reg_snps[ok_filter]
+                ok_reg_snp_means = reg_snp_means[ok_filter]
+                ok_reg_snp_stds = reg_snp_stds[ok_filter]
+                ok_reg_norm_snps = (ok_reg_snps-ok_reg_snp_means) /ok_reg_snp_stds
+                
+                #Filtering the LD matrix.                 
+                ok_D = (D[ok_filter])[:,ok_filter]
+                ok_D_i = D_i[ok_filter]
+                
+                #Impute genotype.
+                ok_D_inv = linalg.pinv(ok_D)
+                if sp.any(sp.isnan(ok_D_inv)):
+                    print 'Matrix inversion failed!!'
+                    print 'Setting SNP genotype to 1'
+                    imputed_snp=1
+                else:
+                    imputed_snp = sp.dot(ok_D_i,sp.dot(ok_D_inv,ok_reg_snps))
+                    
+                    
+                    #Transform imputed genotype to 0-2 scale
+                    snp_mean = snp_means[snp_i][0]
+                    snp_std = snp_stds[snp_i][0]
+                    imputed_snp = imputed_snp*snp_std+snp_mean
+                    if imputed_snp<0:
+                        imputed_snp=0
+                    elif imputed_snp>2:
+                        imputed_snp=2
+                    
+                #Storing imputed genotypes
+                imputed_snps[snp_i] = imputed_snp
+                if true_snp!=-9:
+                    #Estimate prediction accuracy
+                    pred_snps.append(imputed_snp)
+                    true_snps.append(true_snp)
+                else:
+                    #Counting the imputed SNPs with actual missing genotype information
+                    num_snps_imputed += 1
+            
+        print imputed_snp
+        print 'Number of SNPs imputed so far: %d'%num_snps_imputed
+    pred_r2 = (sp.corrcoef(pred_snps, true_snps)[0,1])**2
+    print 'Estimated prediction accuracy (R2): %0.4f'%pred_r2
+
+    return {'imputed_snps':imputed_snps, 'pred_r2':pred_r2}
+
+def window_size_plot():
+    pred_r2s = []
+    window_sizes = [4,10,20,30,40,50,60,70,80,90,100]
+    for window_size in window_sizes:
+#         calc_ld(repos_dir+'imputor/tests/data/test_out_genotype.hdf5', repos_dir+'imputor/tests/data/ld_dict',window_size=window_size)
+        d = impute_23_and_genome(window_size=window_size)
+        pred_r2s.append(d['pred_r2'])
+    print pred_r2s
+    print window_sizes
+    
+    pylab.plot(window_sizes,pred_r2s,alpha=0.6)
+    pylab.ylabel('Prediction accuracy (R2)')
+    pylab.xlabel('Imputation LD window-size')
+    pylab.savefig(cloud_dir+'tmp/tmp.png')
+
 
     
 #For debugging purposes
 if __name__=='__main__':
-#     Filterrelated indivs
+#     Filter related indivs
 #     gen_unrelated_eur_1k_data()
     
-#     prepare_nt_coding_key('/Users/bjv/Dropbox/Cloud_folder/Data/1Kgenomes/1K_genomes_v3_EUR_unrelated2.hdf5',
-#                           '/Users/bjv/REPOS/imputor/tests/data/test_genotype.hdf5',
-#                           '/Users/bjv/Dropbox/Cloud_folder/tmp/nt_map.pickled')
-#     parse_hdf5_genotype('/Users/bjv/REPOS/imputor/tests/data/test_genotype.hdf5',
-#                          '/Users/bjv/Dropbox/Cloud_folder/tmp/nt_map.pickled',
-#                          '/Users/bjv/REPOS/imputor/tests/data/test_out_genotype.hdf5')
-    calc_ld('/Users/bjv/REPOS/imputor/tests/data/test_out_genotype.hdf5', '/Users/bjv/REPOS/imputor/tests/data/ld_mat.hdf5')
-    
+#     prepare_nt_coding_key(cloud_dir+'Data/1Kgenomes/1K_genomes_v3_EUR_unrelated2.hdf5',
+#                           repos_dir+'imputor/tests/data/test_genotype.hdf5',
+#                           cloud_dir+'tmp/nt_map.pickled')
+#     parse_hdf5_genotype(repos_dir+'imputor/tests/data/test_genotype.hdf5',
+#                          cloud_dir+'tmp/nt_map.pickled',
+#                          repos_dir+'imputor/tests/data/test_out_genotype.hdf5')
+#     
+#     window_size = int(sys.argv[1])
+#     
+#     calc_ld(repos_dir+'imputor/tests/data/test_out_genotype.hdf5', repos_dir+'imputor/tests/data/ld_dict',window_size=4)
+#     impute_23_and_genome(window_size=4)
+     window_size_plot()
     
