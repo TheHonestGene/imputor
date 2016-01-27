@@ -17,8 +17,8 @@ import cPickle
 
 import pylab
 
-cloud_dir = '/Users/bjarnivilhjalmsson/Dropbox/Cloud_folder/'
-repos_dir = '/Users/bjarnivilhjalmsson/REPOS/'
+cloud_dir = '/Users/bjv/Dropbox/Cloud_folder/'
+repos_dir = '/Users/bjv/REPOS/'
 
 
 #Coding key
@@ -26,6 +26,7 @@ def prepare_nt_coding_key(K_genomes_snps_map, indiv_genot_file, nt_map_file):
     """
     Determines the nucleotide coding for the genotype using the 1K genome  
     """
+    print 'Generating NT map'
     gf = h5py.File(indiv_genot_file,'r')
     kgf = h5py.File(K_genomes_snps_map,'r')
     chromosomes = range(1,23) 
@@ -77,9 +78,17 @@ def prepare_nt_coding_key(K_genomes_snps_map, indiv_genot_file, nt_map_file):
                 positions.append(kg_pos)
                 nts.append(kg_nt)
                 ok_sids.append(sid)
-                snp_i += 1
+            snp_i += 1
         
         num_snps += len(sid_nt_map)
+    
+        #Sorting SNPs by positions
+        sort_indices = sp.argsort(positions)
+        if not sp.all(sort_indices==sp.arange(len(sort_indices))):
+            positions = positions[sort_indices]
+            ok_sids = ok_sids[sort_indices]
+            nts = nts[sort_indices]
+            
         snp_map_dict[kg_chrom_str]={'sid_nt_map':sid_nt_map, 'positions':positions, 'nts':nts, 'sids':ok_sids}
     
     print 'Found %d SNPs'%num_snps
@@ -88,6 +97,7 @@ def prepare_nt_coding_key(K_genomes_snps_map, indiv_genot_file, nt_map_file):
     cPickle.dump(snp_map_dict, f, protocol=2)
     f.close()
     return snp_map_dict
+        
         
 
 def parse_hdf5_genotype(h5file, nt_map_file, out_h5file):
@@ -156,17 +166,20 @@ def parse_hdf5_genotype(h5file, nt_map_file, out_h5file):
     
     
     
-def calc_ld(ref_genotype_file, ld_prefix, window_size = 200, kgenomes_file = 'Data/1Kgenomes/1K_genomes_v3_EUR_unrelated2.hdf5'):
+def calc_ld(nt_map_file, ld_prefix, window_size = 200, kgenomes_file = 'Data/1Kgenomes/1K_genomes_v3_EUR_unrelated2.hdf5'):
     """
     
     """
-    print 'Calculating LD'
+    print "Loading data"
     #Load 1K genome
     kg_h5f = h5py.File(cloud_dir+kgenomes_file,'r')
     
-    #load genotype.
-    g_h5f = h5py.File(ref_genotype_file,'r')
-
+    #load map file.
+    f = open(nt_map_file, 'r')
+    snp_map_dict = cPickle.load(f)
+    f.close()
+    
+    print 'Calculating LD'
 
     #Figure out overlap (all genotype SNPs should be in the 1K genomes data)..
     for chrom in range(1,23):
@@ -174,10 +187,8 @@ def calc_ld(ref_genotype_file, ld_prefix, window_size = 200, kgenomes_file = 'Da
         chrom_str1 = 'chr%d'%chrom
         kg_cg = kg_h5f[chrom_str1]
         kg_sids = kg_cg['snp_ids'][...]
-
-        chrom_str2 = 'Chr%d'%chrom
-        g_cg = g_h5f[chrom_str2]
-        g_sids = g_cg['sids'][...]
+        chrom_dict = snp_map_dict[chrom_str1]
+        g_sids = chrom_dict['sids']
         
         kg_filter = sp.in1d(kg_sids,g_sids)
         
@@ -214,7 +225,7 @@ def calc_ld(ref_genotype_file, ld_prefix, window_size = 200, kgenomes_file = 'Da
         ld_dict={'Ds':ld_mats,'boundaries':boundaries, 'snp_means':snp_means, 'snp_stds':snp_stds}
         #Store things
         
-        with gzip.open(ld_prefix+'_'+str(window_size)+'_'+chrom_str2+'.pickled.gz','w') as f:
+        with gzip.open(ld_prefix+'_'+str(window_size)+'_'+chrom_str1+'.pickled.gz','w') as f:
             cPickle.dump(ld_dict, f, protocol=2)
             
 
@@ -306,7 +317,7 @@ def impute_23_and_genome(genotype_file=repos_dir+'imputor/tests/data/test_out_ge
                 ok_D_i = D_i[ok_filter]
                 
                 #Impute genotype.
-                ok_D_inv = linalg.pinv(ok_D)
+                ok_D_inv = linalg.pinv(0.95*ok_D+0.05*sp.eye(len(ok_D)))
                 if sp.any(sp.isnan(ok_D_inv)):
                     print 'Matrix inversion failed!!'
                     print 'Setting SNP genotype to 1'
@@ -370,9 +381,9 @@ if __name__=='__main__':
 #                          cloud_dir+'tmp/nt_map.pickled',
 #                          repos_dir+'imputor/tests/data/test_out_genotype.hdf5')
 #     
-#     window_size = int(sys.argv[1])
+    window_size = int(sys.argv[1])
 #     
-#     calc_ld(repos_dir+'imputor/tests/data/test_out_genotype.hdf5', repos_dir+'imputor/tests/data/ld_dict',window_size=4)
-#     impute_23_and_genome(window_size=4)
-     window_size_plot()
+#     calc_ld(cloud_dir+'tmp/nt_map.pickled', repos_dir+'imputor/tests/data/ld_dict',window_size=window_size)
+    impute_23_and_genome(genotype_file=cloud_dir+'tmp/1k_ind_4.hdf5',window_size=window_size)
+#      window_size_plot()
     

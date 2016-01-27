@@ -7,8 +7,8 @@ import gzip
 import cPickle
 
 
-cloud_dir = '/Users/bjarnivilhjalmsson/Dropbox/Cloud_folder/'
-repos_dir = '/Users/bjarnivilhjalmsson/REPOS/'
+cloud_dir = '/Users/bjv/Dropbox/Cloud_folder/'
+repos_dir = '/Users/bjv/REPOS/'
 
     
 def gen_unrelated_eur_1k_data(out_file='Data/1Kgenomes/1K_genomes_v3_EUR_unrelated2.hdf5'):
@@ -126,7 +126,8 @@ def gen_unrelated_eur_1k_data(out_file='Data/1Kgenomes/1K_genomes_v3_EUR_unrelat
     h5f.close()
    
    
-def gen_1k_test_genotypes(kg_file='Data/1Kgenomes/1K_genomes_v3_EUR_unrelated2.hdf5',nt_map_file=cloud_dir+'tmp/nt_map.pickled', out_prefix=''):
+def gen_1k_test_genotypes(kg_file=cloud_dir+'Data/1Kgenomes/1K_genomes_v3_EUR_unrelated2.hdf5',
+                          nt_map_file=cloud_dir+'tmp/nt_map.pickled', out_prefix=cloud_dir+'tmp/1k_ind'):
     """
     Generates 1K genotypes in the internal genotype format for validation and other purposes.
     """
@@ -136,65 +137,76 @@ def gen_1k_test_genotypes(kg_file='Data/1Kgenomes/1K_genomes_v3_EUR_unrelated2.h
     f.close()
     
     h5f = h5py.File(kg_file)
-
+    kg_indivs = h5f['indiv_ids'][...]
+    chromosomes = range(1,23) 
     
-    for indiv in kg_indivs:
-        print 'Parsing genotypes: %s'%h5file
-        h5f = h5py.File(h5file,'r')
-        chromosomes = range(1,23) 
+    
+    #Figure out 1K SNP filter
+    chrom_filter_dict = {}
+    
+    for chrom in chromosomes:
+        kg_chrom_str = 'chr%d'%chrom
+        cg = h5f[kg_chrom_str]
+        sids = cg['snp_ids'][...]
+        
+        #Get the nucleotides coding map (from 1K genomes project).
+        chrom_dict = snp_map_dict[kg_chrom_str]
+        ok_sids = chrom_dict['sids']
+        snps_filter = sp.in1d(sids,ok_sids)
+        chrom_filter_dict[chrom] = snps_filter
+        
+        reorder_snps = False
+        filtered_sids = sids[snps_filter]
+        assert len(filtered_sids)==len(ok_sids), '.... bug'
+        if not sp.all(filtered_sids==ok_sids):
+            sids_indices_dict = {}
+            for i, sid in enumerate(sids):
+                sids_indices_dict[sid]=i
+            snp_order = []
+            for sid in ok_sids:
+                snp_order.append(sids_indices_dict[sid])
+            filtered_sids = filtered_sids[snp_order]
+            assert sp.all(filtered_sids==ok_sids), '... bug'
+            reorder_snps = True
+    
+    
+    for ind_i in range(10):#len(kg_indivs)):
+        print 'Generating genotype for individual: %d '%ind_i
         
         #prepare output file
-        oh5f = h5py.File(out_h5file)
+        out_h5fn = out_prefix+'_%d.hdf5'%ind_i
+        out_h5f = h5py.File(out_h5fn)
         
-        tot_num_parsed_snps = 0
         for chrom in chromosomes:
-            print '\nWorking on chromosome %d'%chrom
+#             print '\nWorking on chromosome %d'%chrom
             kg_chrom_str = 'chr%d'%chrom
             chrom_str = 'Chr%d'%chrom
-            cg = h5f[chrom_str]
-            sids = cg['ids'][...]
-            raw_snps = cg['snps'][...]
+            cg = h5f[kg_chrom_str]
             
-            #Get the nucleotides coding map (from 1K genomes project).
-            chrom_dict = snp_map_dict[kg_chrom_str]
-            sid_nt_map = chrom_dict['sid_nt_map']
-            n = len(sid_nt_map)
-            snps = sp.repeat(-9, n) #Creating the SNP with fixed size 
-            num_not_found = 0
-            num_misunderstood = 0
-            num_parsed_ok = 0
-            for sid, nt in izip(sids,raw_snps):
-                try:
-                    d = sid_nt_map[sid]
-                except Exception:
-                    num_not_found +=1
-                    continue
-                try:
-                    nt_val = d['ntm'][nt]
-                except Exception:
-                    num_misunderstood +=1
-                    continue
-                snps[d['snp_i']] = nt_val
-                num_parsed_ok += 1
-                
-            print "%d SNPs weren't found and %d SNPs had unrecognizable nucleotides"%(num_not_found,num_misunderstood) 
-            print "%d SNPs were parsed ok."%num_parsed_ok
-            tot_num_parsed_snps +=num_parsed_ok
-            #Not sure what information we need, perhaps only the SNPs?
+            snps_filter = chrom_filter_dict[chrom]
+
+            sids = (cg['snp_ids'][...])[snps_filter]
+            snps = (cg['snps'][...])[:,ind_i]
+            snps = snps[snps_filter]
+            positions = (cg['positions'][...])[snps_filter]
+            nts = (cg['nts'][...])[snps_filter]
             
-            assert len(snps)==len(chrom_dict['sids'])==len(chrom_dict['positions'])==len(chrom_dict['nts']), '..bug'
+            if reorder_snps:
+                snps = snps[snp_order]
+                positions = positions[snp_order]
+                nts = nts[snp_order]
+                sids = sids[snp_order]
+            
+            assert len(snps)==len(sids)==len(positions)==len(nts), '..bug'
             #Store information
-            cg = oh5f.create_group(chrom_str)
-            cg.create_dataset('snps', data=snps)
-            cg.create_dataset('sids', data=chrom_dict['sids'])
-            cg.create_dataset('positions', data=chrom_dict['positions'])
-            cg.create_dataset('nts', data=chrom_dict['nts'])
-            #Also positions..
-            
-            #genome_dict[chrom]={'snps':snps, } #'sids':chrom_dict['sids'], 'positions':chrom_dict['positions'], 'nts':chrom_dict['nts']}
-        print 'In total %d SNPs were parsed.'%tot_num_parsed_snps
-        h5f.close()
-        oh5f.close()
+            ocg = out_h5f.create_group  (chrom_str)
+            ocg.create_dataset('snps', data=snps)
+            ocg.create_dataset('sids', data=sids)
+            ocg.create_dataset('positions', data=positions)
+            ocg.create_dataset('nts', data=nts)
+
+        out_h5f.close()
+    h5f.close()
         #return genome_dict        
 
 
@@ -268,6 +280,6 @@ def gen_1k_test_genotypes(kg_file='Data/1Kgenomes/1K_genomes_v3_EUR_unrelated2.h
         
 #For debugging purposes
 if __name__=='__main__':        
-    pass
+    gen_1k_test_genotypes()
 
 
