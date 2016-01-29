@@ -104,10 +104,10 @@ def gen_unrelated_eur_1k_data(out_file='Data/1Kgenomes/1K_genomes_v3_EUR_unrelat
         positions = positions[nt_filter]
         cg.create_dataset('positions',data=positions)
         
-        eur_maf = h5f[chrom_str]['eur_maf'][...]
-        eur_maf = eur_maf[mono_morph_filter]
-        eur_maf = eur_maf[nt_filter]
-        cg.create_dataset('eur_maf',data=eur_maf)
+#         eur_maf = h5f[chrom_str]['eur_maf'][...]
+#         eur_maf = eur_maf[mono_morph_filter]
+#         eur_maf = eur_maf[nt_filter]
+#         cg.create_dataset('eur_maf',data=eur_maf)
         
         decoded_nts = []
         for nt in nts:
@@ -116,11 +116,11 @@ def gen_unrelated_eur_1k_data(out_file='Data/1Kgenomes/1K_genomes_v3_EUR_unrelat
             decoded_nts.append([Kg_nt_decoder[nt1],Kg_nt_decoder[nt2]])
         cg.create_dataset('nts',data=decoded_nts)
         
-        centimorgans = h5f[chrom_str]['centimorgans'][...]
-        cg.create_dataset('centimorgans',data=centimorgans)
-        
-        centimorgan_rates = h5f[chrom_str]['centimorgan_rates'][...]
-        cg.create_dataset('centimorgan_rates',data=centimorgan_rates)
+#         centimorgans = h5f[chrom_str]['centimorgans'][...]
+#         cg.create_dataset('centimorgans',data=centimorgans)
+#         
+#         centimorgan_rates = h5f[chrom_str]['centimorgan_rates'][...]
+#         cg.create_dataset('centimorgan_rates',data=centimorgan_rates)
         
     oh5f.close()
     h5f.close()

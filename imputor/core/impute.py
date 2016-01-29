@@ -157,7 +157,6 @@ def parse_hdf5_genotype(h5file, nt_map_file, out_h5file):
         cg.create_dataset('sids', data=chrom_dict['sids'])
         cg.create_dataset('positions', data=chrom_dict['positions'])
         cg.create_dataset('nts', data=chrom_dict['nts'])
-        #Also positions..
         
         #genome_dict[chrom]={'snps':snps, } #'sids':chrom_dict['sids'], 'positions':chrom_dict['positions'], 'nts':chrom_dict['nts']}
     print 'In total %d SNPs were parsed.'%tot_num_parsed_snps
@@ -231,7 +230,8 @@ def calc_ld(nt_map_file, ld_prefix, window_size = 200, kgenomes_file = 'Data/1Kg
             
 
 
-def impute_23_and_genome(genotype_file=repos_dir+'imputor/tests/data/test_out_genotype.hdf5', 
+def impute_23_and_genome(genotype_file=repos_dir+'imputor/tests/data/test_out_genotype.hdf5',
+                         out_genotype_file=repos_dir+'imputor/tests/data/test_out_genotype_imputed.hdf5', 
                          ld_prefix=repos_dir+'imputor/tests/data/ld_dict', window_size = 40,
                          validation_missing_rate=0.02, min_ld_r2_thres = 0.02):
     """
@@ -244,6 +244,7 @@ def impute_23_and_genome(genotype_file=repos_dir+'imputor/tests/data/test_out_ge
     """
 
     g_h5f = h5py.File(genotype_file,'r')
+    imputed_snps_dict = {}
     
     pred_snps = []
     true_snps = []
@@ -348,10 +349,36 @@ def impute_23_and_genome(genotype_file=repos_dir+'imputor/tests/data/test_out_ge
             
         print imputed_snp
         print 'Number of SNPs imputed so far: %d'%num_snps_imputed
+        imputed_snps_dict[chrom_str] = imputed_snps
+        
     pred_r2 = (sp.corrcoef(pred_snps, true_snps)[0,1])**2
     print 'Estimated prediction accuracy (R2): %0.4f'%pred_r2
 
-    return {'imputed_snps':imputed_snps, 'pred_r2':pred_r2}
+    if out_genotype_file:
+        print 'Writing imputed genotypes to file'
+        oh5f = h5py.File(out_genotype_file)
+        for chrom in range(1,23):
+            print 'Working on Chromosome %d'%chrom
+
+            chrom_str = 'Chr%d'%chrom            
+            g_cg = g_h5f[chrom_str]
+            imputed_snps = imputed_snps_dict[chrom_str]
+            
+            #Loading data 
+            sids = g_cg['sids'][...]
+            nts = g_cg['nts'][...]
+            positions = g_cg['positions'][...]
+
+            cg = oh5f.create_group(chrom_str)
+            cg.create_dataset('snps', data=imputed_snps)
+            cg.create_dataset('sids', data=sids)
+            cg.create_dataset('positions', data=positions)
+            cg.create_dataset('nts', data=nts)
+
+        oh5f.close()
+    g_h5f.close()
+    
+    #return {'imputed_snps':imputed_snps_dict, 'pred_r2':pred_r2}
 
 def window_size_plot():
     pred_r2s = []
