@@ -3,6 +3,7 @@ import scipy as sp
 from itertools import *
 ambig_nts = set([('A', 'T'), ('T', 'A'), ('G', 'C'), ('C', 'G')])
 opp_strand_dict = {'A':'T', 'G':'C', 'T':'A', 'C':'G'}
+Kg_nt_decoder = {1:'A', 2:'T', 3:'C', 4:'G', }
 import gzip
 import cPickle
 
