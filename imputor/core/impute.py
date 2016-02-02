@@ -27,7 +27,7 @@ def prepare_nt_coding_key(K_genomes_snps_map, indiv_genot_file, nt_map_file):
     Determines the nucleotide coding for the genotype using the 1K genome  
     """
     print 'Generating NT map'
-    gf = h5py.File(indiv_genot_file,'r')
+    gf = h5py.File(indiv_genot_file,'r') 
     kgf = h5py.File(K_genomes_snps_map,'r')
     chromosomes = range(1,23) 
     snp_map_dict = {}
