@@ -234,6 +234,7 @@ def create_coding_key_map(K_genomes_file,genotype_file,nt_map_file):
                 nts.append(kg_nt)
                 ok_sids.append(sid)
                 snp_i += 1
+
         num_snps += len(sid_nt_map)
 
         #Sorting SNPs by positions
@@ -667,3 +668,39 @@ def impute(genotype_file,ld_folder,output_file,validation_missing_rate=0.02, min
         oh5f.close()
     g_h5f.close()
     return result
+
+# def window_size_plot():
+#     pred_r2s = []
+#     window_sizes = [4,10,20,30,40,50,60,70,80,90,100]
+#     for window_size in window_sizes:
+# #         calc_ld(repos_dir+'imputor/tests/data/test_out_genotype.hdf5', repos_dir+'imputor/tests/data/ld_dict',window_size=window_size)
+#         d = impute_23_and_genome(window_size=window_size)
+#         pred_r2s.append(d['pred_r2'])
+#     print pred_r2s
+#     print window_sizes
+#     
+#     pylab.plot(window_sizes,pred_r2s,alpha=0.6)
+#     pylab.ylabel('Prediction accuracy (R2)')
+#     pylab.xlabel('Imputation LD window-size')
+#     pylab.savefig(cloud_dir+'tmp/tmp.png')
+
+
+    
+#For debugging purposes
+# if __name__=='__main__':
+#     Filter related indivs
+#     gen_unrelated_eur_1k_data()
+#     
+#     prepare_nt_coding_key(cloud_dir+'Data/1Kgenomes/1K_genomes_v3_EUR_unrelated2.hdf5',
+#                           repos_dir+'imputor/tests/data/test_genotype.hdf5',
+#                           cloud_dir+'tmp/nt_map.pickled')
+#     parse_hdf5_genotype(repos_dir+'imputor/tests/data/test_genotype.hdf5',
+#                          cloud_dir+'tmp/nt_map.pickled',
+#                          repos_dir+'imputor/tests/data/test_out_genotype.hdf5')
+#     
+#     window_size = int(sys.argv[1])
+#     
+#     calc_ld(cloud_dir+'tmp/nt_map.pickled', repos_dir+'imputor/tests/data/ld_dict',window_size=window_size)
+#     impute_23_and_genome(genotype_file=cloud_dir+'tmp/1k_ind_4.hdf5',window_size=window_size)
+#      window_size_plot()
+    
