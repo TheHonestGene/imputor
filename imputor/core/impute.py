@@ -11,7 +11,6 @@ import random
 from itertools import izip
 ambig_nts = set([('A', 'T'), ('T', 'A'), ('G', 'C'), ('C', 'G')])
 opp_strand_dict = {'A':'T', 'G':'C', 'T':'A', 'C':'G'}
-Kg_nt_decoder = {1:'A', 2:'T', 3:'C', 4:'G', }
 
 import cPickle
 
@@ -27,7 +26,7 @@ def prepare_nt_coding_key(K_genomes_snps_map, indiv_genot_file, nt_map_file):
     Determines the nucleotide coding for the genotype using the 1K genome  
     """
     print 'Generating NT map'
-    gf = h5py.File(indiv_genot_file,'r') 
+    gf = h5py.File(indiv_genot_file,'r')  
     kgf = h5py.File(K_genomes_snps_map,'r')
     chromosomes = range(1,23) 
     snp_map_dict = {}
@@ -401,12 +400,12 @@ if __name__=='__main__':
 #     Filter related indivs
 #     gen_unrelated_eur_1k_data()
     
-#     prepare_nt_coding_key(cloud_dir+'Data/1Kgenomes/1K_genomes_v3_EUR_unrelated2.hdf5',
-#                           repos_dir+'imputor/tests/data/test_genotype.hdf5',
-#                           cloud_dir+'tmp/nt_map.pickled')
-#     parse_hdf5_genotype(repos_dir+'imputor/tests/data/test_genotype.hdf5',
-#                          cloud_dir+'tmp/nt_map.pickled',
-#                          repos_dir+'imputor/tests/data/test_out_genotype.hdf5')
+    prepare_nt_coding_key(cloud_dir+'Data/1Kgenomes/1K_genomes_v3_EUR_unrelated2.hdf5',
+                          repos_dir+'imputor/tests/data/test_genotype.hdf5',
+                          cloud_dir+'tmp/nt_map.pickled')
+    parse_hdf5_genotype(repos_dir+'imputor/tests/data/test_genotype.hdf5',
+                         cloud_dir+'tmp/nt_map.pickled',
+                         repos_dir+'imputor/tests/data/test_out_genotype.hdf5')
 #     
     window_size = int(sys.argv[1])
 #     
