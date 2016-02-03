@@ -19,7 +19,39 @@ import pylab
 cloud_dir = '/Users/bjv/Dropbox/Cloud_folder/'
 repos_dir = '/Users/bjv/REPOS/'
 
-
+def convert_to_hdf5(file_name,out_file_name):
+    #Covert 23andme file to a HDF5 file.
+    with open(file_name,'r') as f:
+        data = f.read()
+    csv_content = data.decode("utf-8")
+    start_chr = None
+    f = h5py.File(out_file_name)
+    pos_snps =[]
+    
+    for row in csv_content.splitlines():
+        if len(row) == 0 or row[0] == '#':
+            continue
+        cols = row.split("\t")
+        if len(cols) != 4:
+            continue
+        if cols[1] != start_chr:
+            if start_chr is not None:
+                sorted(pos_snps, key=lambda x: x[0])
+                positions,ids,snps = zip(*pos_snps)
+                snpids_dset = group.create_dataset('ids',(len(positions),),chunks=True,compression='lzf',dtype='S15',data=ids)
+                pos_dset = group.create_dataset('positions',(len(positions),),chunks=True,compression='lzf',dtype='i8',data=positions)
+                snp_dset = group.create_dataset('snps',(len(positions),),chunks=True,compression='lzf',dtype='S2',data=snps)
+                pos_snps =[]
+            start_chr = cols[1]
+            group = f.create_group("Chr%s" % start_chr)
+        pos_snps.append((int(cols[2]),cols[0].encode('utf-8'),cols[3].encode('utf-8')))
+    sorted(pos_snps, key=lambda x: x[0])
+    positions,ids,snps = zip(*pos_snps)
+    snpids_dset = group.create_dataset('ids',(len(positions),),chunks=True,compression='lzf',dtype='S15',data=ids)
+    pos_dset = group.create_dataset('positions',(len(positions),),chunks=True,compression='lzf',dtype='i8',data=positions)
+    snp_dset = group.create_dataset('snps',(len(positions),),chunks=True,compression='lzf',dtype='S2',data=snps)
+    
+        
 #Coding key
 def prepare_nt_coding_key(K_genomes_snps_map, indiv_genot_file, nt_map_file):
     """
@@ -77,7 +109,7 @@ def prepare_nt_coding_key(K_genomes_snps_map, indiv_genot_file, nt_map_file):
                 positions.append(kg_pos)
                 nts.append(kg_nt)
                 ok_sids.append(sid)
-            snp_i += 1
+                snp_i += 1
         
         num_snps += len(sid_nt_map)
     
@@ -403,13 +435,13 @@ if __name__=='__main__':
     prepare_nt_coding_key(cloud_dir+'Data/1Kgenomes/1K_genomes_v3_EUR_unrelated2.hdf5',
                           repos_dir+'imputor/tests/data/test_genotype.hdf5',
                           cloud_dir+'tmp/nt_map.pickled')
-    parse_hdf5_genotype(repos_dir+'imputor/tests/data/test_genotype.hdf5',
-                         cloud_dir+'tmp/nt_map.pickled',
-                         repos_dir+'imputor/tests/data/test_out_genotype.hdf5')
+#     parse_hdf5_genotype(repos_dir+'imputor/tests/data/test_genotype.hdf5',
+#                          cloud_dir+'tmp/nt_map.pickled',
+#                          repos_dir+'imputor/tests/data/test_out_genotype.hdf5')
 #     
-    window_size = int(sys.argv[1])
+#     window_size = int(sys.argv[1])
 #     
 #     calc_ld(cloud_dir+'tmp/nt_map.pickled', repos_dir+'imputor/tests/data/ld_dict',window_size=window_size)
-    impute_23_and_genome(genotype_file=cloud_dir+'tmp/1k_ind_4.hdf5',window_size=window_size)
+#     impute_23_and_genome(genotype_file=cloud_dir+'tmp/1k_ind_4.hdf5',window_size=window_size)
 #      window_size_plot()
     
