@@ -22,10 +22,10 @@ repos_dir = '/Users/bjv/REPOS/'
 def convert_to_hdf5(file_name,out_file_name):
     #Covert 23andme file to a HDF5 file.
     with open(file_name,'r') as f:
-        data = f.readlines()
+        data = f.read()
     csv_content = data.decode("utf-8")
     start_chr = None
-    f = h5py.File('%s.hdf5' % genotype_id)
+    f = h5py.File(out_file_name)
     pos_snps =[]
     
     for row in csv_content.splitlines():
@@ -109,7 +109,7 @@ def prepare_nt_coding_key(K_genomes_snps_map, indiv_genot_file, nt_map_file):
                 positions.append(kg_pos)
                 nts.append(kg_nt)
                 ok_sids.append(sid)
-            snp_i += 1
+                snp_i += 1
         
         num_snps += len(sid_nt_map)
     
@@ -435,13 +435,13 @@ if __name__=='__main__':
     prepare_nt_coding_key(cloud_dir+'Data/1Kgenomes/1K_genomes_v3_EUR_unrelated2.hdf5',
                           repos_dir+'imputor/tests/data/test_genotype.hdf5',
                           cloud_dir+'tmp/nt_map.pickled')
-    parse_hdf5_genotype(repos_dir+'imputor/tests/data/test_genotype.hdf5',
-                         cloud_dir+'tmp/nt_map.pickled',
-                         repos_dir+'imputor/tests/data/test_out_genotype.hdf5')
+#     parse_hdf5_genotype(repos_dir+'imputor/tests/data/test_genotype.hdf5',
+#                          cloud_dir+'tmp/nt_map.pickled',
+#                          repos_dir+'imputor/tests/data/test_out_genotype.hdf5')
 #     
-    window_size = int(sys.argv[1])
+#     window_size = int(sys.argv[1])
 #     
 #     calc_ld(cloud_dir+'tmp/nt_map.pickled', repos_dir+'imputor/tests/data/ld_dict',window_size=window_size)
-    impute_23_and_genome(genotype_file=cloud_dir+'tmp/1k_ind_4.hdf5',window_size=window_size)
+#     impute_23_and_genome(genotype_file=cloud_dir+'tmp/1k_ind_4.hdf5',window_size=window_size)
 #      window_size_plot()
     
