@@ -9,7 +9,7 @@ with open(path.join(here, 'README.rst'), encoding='utf-8') as f:
     long_description = f.read()
 
 setup(
-    name='RiskPredictor',
+    name='Imputor',
     version='0.0.1',
     description='A library for imputation',
     long_description=long_description,
@@ -36,7 +36,7 @@ setup(
     ],
     entry_points={
         'console_scripts': [
-            'inmputor=imputor:main'
+            'imputor=imputor:main'
         ],
     },
 )
