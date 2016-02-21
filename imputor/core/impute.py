@@ -31,12 +31,10 @@ def _get_chunk_length(data):
     return min(data.shape[0],max(1,(2**20) // rowsize))
 
 
-def convert_genotype_to_hdf5(input_file,output_file):
-    log.info('Convert genotype %s from text format to HDF5 format %s' % (input_file,output_file))
+def convert_genotype_to_hdf5(csv_content,output_file):
+    log.info('Convert genotype from text format to HDF5 format %s' % (output_file))
     #Covert 23andme file to a HDF5 file.
-    with open(input_file,'r') as f:
-        data = f.read()
-    csv_content = data.decode("utf-8")
+    
     start_chr = None
     f = h5py.File(output_file,'w')
     pos_snps =[]
@@ -251,6 +249,7 @@ def convert_genotype_nt_key_encoding(input_file,output_file,nt_map_file):
     oh5f = h5py.File(output_file,'w')
 
     tot_num_parsed_snps = 0
+    result = {'total_num_parsed_snps':tot_num_parsed_snps,'chr_stats':{}}
     for chrom in range(1,23):
         log.info('Working on chromosome %s'%chrom)
         kg_chrom_str = 'chr%s'%chrom
@@ -285,6 +284,7 @@ def convert_genotype_nt_key_encoding(input_file,output_file,nt_map_file):
         log.info("%d SNPs weren't found and %d SNPs had unrecognizable nucleotides"%(num_not_found,num_misunderstood))
         log.info("%d SNPs were parsed ok."%num_parsed_ok)
         tot_num_parsed_snps +=num_parsed_ok
+        result['chr_stats'][chrom_str] = {'num_not_found':num_not_found,'num_misunderstood':num_misunderstood,'num_parsed_ok':num_parsed_ok}
         #Not sure what information we need, perhaps only the SNPs?
 
         assert len(snps)==len(chrom_dict['sids'])==len(chrom_dict['positions'])==len(chrom_dict['nts']), '..bug'
@@ -298,8 +298,10 @@ def convert_genotype_nt_key_encoding(input_file,output_file,nt_map_file):
         cg.create_dataset('positions', data=chrom_dict['positions'],compression='lzf',chunks=True)
         cg.create_dataset('nts', data=chrom_dict['nts'],compression='lzf',chunks=True)
     log.info('In total %d SNPs were parsed.'%tot_num_parsed_snps)
+    result['total_num_parsed_snps'] = tot_num_parsed_snps
     h5f.close()
     oh5f.close()
+    return result
     #return genome_dict
     
     
@@ -498,6 +500,7 @@ def impute(genotype_file,ld_folder,output_file,validation_missing_rate=0.02, min
 
     pred_snps = []
     true_snps = []
+    result = {'chr_stats':{}}
     for chrom in range(1,23):
         log.info('Working on Chromosome %d'%chrom)
 
@@ -598,12 +601,13 @@ def impute(genotype_file,ld_folder,output_file,validation_missing_rate=0.02, min
                 else:
                     #Counting the imputed SNPs with actual missing genotype information
                     num_snps_imputed += 1
-
+        result['chr_stats'][chrom_str] = num_snps_imputed
         log.info('Number of SNPs imputed so far: %d'%num_snps_imputed)
         imputed_snps_dict[chrom_str] = imputed_snps
 
     pred_r2 = (sp.corrcoef(pred_snps, true_snps)[0,1])**2
     log.info('Estimated prediction accuracy (R2): %0.4f'%pred_r2)
+    result['pred_r2'] = float(pred_r2)
 
     if output_file:
         log.info('Writing imputed genotypes to file %s' % output_file)
@@ -628,3 +632,4 @@ def impute(genotype_file,ld_folder,output_file,validation_missing_rate=0.02, min
 
         oh5f.close()
     g_h5f.close()
+    return result
