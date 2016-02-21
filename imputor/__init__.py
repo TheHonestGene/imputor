@@ -10,7 +10,7 @@ import os
 import sys
 import argparse
 import logging, logging.config
-from core import impute as imp
+from imputor.core import impute as imp
 
 LOGGING = {
     'version': 1,

@@ -9,10 +9,15 @@ import scipy as sp
 from scipy import linalg
 import gzip
 import random
-from itertools import izip
-from itertools import *
+try:
+    from itertools import izip as zip
+except ImportError: # will be 3.x series
+    pass
 import gzip
-import cPickle as pickle
+try:
+    import cPickle as pickle
+except ImportError: # will be 3.series
+    import pickle
 import numpy as np
 import operator
 
@@ -195,7 +200,7 @@ def create_coding_key_map(K_genomes_file,genotype_file,nt_map_file):
         ok_sids = []
         nts = []
         snp_i = 0
-        for sid, kg_nt, kg_pos in izip(kg_sids, kg_nts, kg_positions):
+        for sid, kg_nt, kg_pos in zip(kg_sids, kg_nts, kg_positions):
             snp = sid_dict[sid]
             if tuple(kg_nt) not in ambig_nts:
                 # All possible (and allowed) nucleotides strings
@@ -236,8 +241,8 @@ def convert_genotype_nt_key_encoding(input_file,output_file,nt_map_file):
     Convert the SNPs from nt form to numeric form in genotype to be imputed
     """
     log.info('Loading NT map from file: %s'%nt_map_file)
-    with open(nt_map_file, 'r') as f:
-        snp_map_dict = pickle.load(f)
+    with open(nt_map_file, 'rb') as f:
+        snp_map_dict = pickle.load(f,encoding='latin1')
 
     log.info('Parsing individual genotype: %s'%input_file)
     h5f = h5py.File(input_file,'r')
@@ -262,14 +267,14 @@ def convert_genotype_nt_key_encoding(input_file,output_file,nt_map_file):
         num_not_found = 0
         num_misunderstood = 0
         num_parsed_ok = 0
-        for sid, nt in izip(sids,raw_snps):
+        for sid, nt in zip(sids,raw_snps):
             try:
                 d = sid_nt_map[sid]
             except Exception:
                 num_not_found +=1
                 continue
             try:
-                nt_val = d['ntm'][nt]
+                nt_val = d['ntm'][nt.decode()] # decode required for py3
             except Exception:
                 num_misunderstood +=1
                 continue
@@ -423,8 +428,8 @@ def calculate_ld(nt_map_file,kgenomes_file, output_folder, window_size):
     kg_h5f = h5py.File(kgenomes_file,'r')
 
     #load map file.
-    with open(nt_map_file, 'r') as f:
-        snp_map_dict = pickle.load(f)
+    with open(nt_map_file, 'rb') as f:
+        snp_map_dict = pickle.load(f,encoding='latin1')
 
     #Figure out overlap (all genotype SNPs should be in the 1K genomes data)..
     for chrom in range(1,23):
@@ -498,8 +503,8 @@ def impute(genotype_file,ld_folder,output_file,validation_missing_rate=0.02, min
 
         #Loading pre-calculated LD matrices (Note that these could perhaps be stored more efficiently.)
         chrom_str = 'Chr%d'%chrom
-        with gzip.open('%s/LD'%ld_folder +'_'+chrom_str.lower()+'.pickled.gz','r') as f:
-            ld_dict = pickle.load(f)
+        with gzip.open('%s/LD'%ld_folder +'_'+chrom_str.lower()+'.pickled.gz','rb') as f:
+            ld_dict = pickle.load(f,encoding='latin1')
 
         g_cg = g_h5f[chrom_str]
 
