@@ -234,10 +234,16 @@ def create_coding_key_map(K_genomes_file,genotype_file,nt_map_file):
         pickle.dump(snp_map_dict, f, protocol=2)
 
 
-def convert_genotype_nt_key_encoding(input_file,output_file,nt_map_file):
+def convert_genotype_nt_key_encoding(input_file,output_file,nt_map_file,**kwargs):
     """
     Convert the SNPs from nt form to numeric form in genotype to be imputed
     """
+    log_extra = kwargs.get('log_extra',{'progress':0})
+    if 'max_progress' not in log_extra:
+        log_extra['max_progress'] = 100
+    partial_progress_inc = (log_extra['max_progress']-log_extra['progress'])/22
+    
+    
     log.info('Loading NT map from file: %s'%nt_map_file)
     with open(nt_map_file, 'rb') as f:
         snp_map_dict = pickle.load(f,encoding='latin1')
@@ -251,7 +257,8 @@ def convert_genotype_nt_key_encoding(input_file,output_file,nt_map_file):
     tot_num_parsed_snps = 0
     result = {'total_num_parsed_snps':tot_num_parsed_snps,'chr_stats':{}}
     for chrom in range(1,23):
-        log.info('Working on chromosome %s'%chrom)
+        log_extra['progress']+=partial_progress_inc
+        log.info('Working on chromosome %s'%chrom,extra=log_extra)
         kg_chrom_str = 'chr%s'%chrom
         chrom_str = 'Chr%s'%chrom
         cg = h5f[chrom_str]
@@ -483,7 +490,7 @@ def calculate_ld(nt_map_file,kgenomes_file, output_folder, window_size):
             pickle.dump(ld_dict, f, protocol=2)
 
 
-def impute(genotype_file,ld_folder,output_file,validation_missing_rate=0.02, min_ld_r2_thres = 0.02):
+def impute(genotype_file,ld_folder,output_file,validation_missing_rate=0.02, min_ld_r2_thres = 0.02,**kwargs):
     """
     Impute the missing SNPs from the reference genome dataset into a given genotype
 
@@ -501,8 +508,15 @@ def impute(genotype_file,ld_folder,output_file,validation_missing_rate=0.02, min
     pred_snps = []
     true_snps = []
     result = {'chr_stats':{}}
+    
+    log_extra = kwargs.get('log_extra',{'progress':0})
+    if 'max_progress' not in log_extra:
+        log_extra['max_progress'] = 100
+    partial_progress_inc = (log_extra['max_progress']-log_extra['progress'])/22
+    
     for chrom in range(1,23):
-        log.info('Working on Chromosome %d'%chrom)
+        log_extra['progress']+=partial_progress_inc
+        log.info('Working on Chromosome %d'%chrom,extra=log_extra)
 
         #Loading pre-calculated LD matrices (Note that these could perhaps be stored more efficiently.)
         chrom_str = 'Chr%d'%chrom
