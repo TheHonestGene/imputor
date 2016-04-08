@@ -444,4 +444,7 @@ if __name__=='__main__':
 #     calc_ld(cloud_dir+'tmp/nt_map.pickled', repos_dir+'imputor/tests/data/ld_dict',window_size=window_size)
 #     impute_23_and_genome(genotype_file=cloud_dir+'tmp/1k_ind_4.hdf5',window_size=window_size)
 #      window_size_plot()
-    
+
+
+
+
