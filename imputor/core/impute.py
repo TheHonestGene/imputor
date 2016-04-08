@@ -703,4 +703,7 @@ def impute(genotype_file,ld_folder,output_file,validation_missing_rate=0.02, min
 #     calc_ld(cloud_dir+'tmp/nt_map.pickled', repos_dir+'imputor/tests/data/ld_dict',window_size=window_size)
 #     impute_23_and_genome(genotype_file=cloud_dir+'tmp/1k_ind_4.hdf5',window_size=window_size)
 #      window_size_plot()
-    
+
+
+
+
