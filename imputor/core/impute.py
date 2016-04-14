@@ -32,7 +32,6 @@ def _get_chunk_length(data):
     rowsize = data.dtype.itemsize * reduce(operator.mul,data.shape[1:],1)
     return min(data.shape[0],max(1,(2**20) // rowsize))
 
-
 def convert_genotype_to_hdf5(csv_content,output_file):
     log.info('Convert genotype from text format to HDF5 format %s' % (output_file))
     # guess the source
@@ -78,6 +77,7 @@ def convert_genotype_to_hdf5(csv_content,output_file):
     f.close()
 
 def prepare_hapmap_for_ld_calculation(input_file,output_file):
+
     """
     Removes non-europeans and related individuals and monomorphic or unknown SNPs
     """
