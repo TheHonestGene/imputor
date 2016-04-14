@@ -33,11 +33,12 @@ def _get_chunk_length(data):
     return min(data.shape[0],max(1,(2**20) // rowsize))
 
 
-def convert_genotype_to_hdf5(csv_content,output_file):
+def convert_genotype_to_hdf5(csv_content,output_file,source=None):
     log.info('Convert genotype from text format to HDF5 format %s' % (output_file))
     # guess the source
     fd = io.StringIO(csv_content)
-    source = sn.guess_source_from_content(csv_content)
+    if source is None:
+        source = sn.guess_source_from_content(csv_content)
     version = ''
     snps = sn.parse(fd,source)
     start_chr = None
@@ -70,7 +71,8 @@ def convert_genotype_to_hdf5(csv_content,output_file):
             version = 'v1'
         elif num_snps <= 597000:
             version = 'v2'
-        elif num_snps <= 611000:
+        # TODO current workaround because oauth genotype are > 1000000
+        elif num_snps <= 611000 or num_snps > 1000000:
             version = 'v4'
         elif num_snps <= 992000:
             version = 'v3'
