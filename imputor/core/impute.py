@@ -20,6 +20,7 @@ try:
     import cPickle as pickle
 except ImportError: # will be 3.series
     import pickle
+from functools import reduce # # py3 does not have it 
 import numpy as np
 import operator
 
@@ -84,7 +85,7 @@ def prepare_hapmap_for_ld_calculation(input_file,output_file):
     Removes non-europeans and related individuals and monomorphic or unknown SNPs
     """
     h5f = h5py.File(input_file,'r')
-    eur_filter = h5f['indivs']['continent'][...]=='EUR'
+    eur_filter = h5f['indivs']['continent'][...]==b'EUR'
     num_indivs = sp.sum(eur_filter)
     K = sp.zeros((num_indivs,num_indivs), dtype='single')
     num_snps = 0
@@ -231,6 +232,8 @@ def create_coding_key_map(K_genomes_file,genotype_file,nt_map_file):
                 ntm[b+a]=1
                 ntm[a+b]=1
                 ntm[b+b]=2
+                if sid in sid_nt_map:
+                    log.warn('Warning %s SNP is duplicate' % sid) 
                 sid_nt_map[sid]={'ntm':ntm, 'snp_i':snp_i}
                 positions.append(kg_pos)
                 nts.append(kg_nt)
@@ -304,8 +307,6 @@ def convert_genotype_nt_key_encoding(input_file,output_file,nt_map_file,**kwargs
                     continue
                 snps[d['snp_i']] = nt_val
                 num_parsed_ok += 1
-
-
             log.info("%d SNPs weren't found and %d SNPs had unrecognizable nucleotides"%(num_not_found,num_misunderstood))
             log.info("%d SNPs were parsed ok."%num_parsed_ok)
             tot_num_parsed_snps +=num_parsed_ok
