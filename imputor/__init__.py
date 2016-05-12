@@ -7,6 +7,7 @@
 """
 
 import os
+from io import open
 import sys
 import argparse
 import logging, logging.config
@@ -109,7 +110,7 @@ def prepare(args):
     imp.prepare_hapmap_for_ld_calculation(args['input_file'],args['output_file'])
 
 def parse_genotype(args):
-    with open(args['input_file'],'r') as f:
+    with open(args['input_file'],'r',encoding='utf-8') as f:
         data = f.read()
     csv_content = data    
     imp.convert_genotype_to_hdf5(data,args['output_file'])

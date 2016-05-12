@@ -23,6 +23,8 @@ except ImportError: # will be 3.series
 from functools import reduce # # py3 does not have it 
 import numpy as np
 import operator
+from sys import version_info
+
 
 
 ambig_nts = set([(b'A', b'T'), (b'T', b'A'), (b'G', b'C'), (b'C', b'G')])
@@ -268,8 +270,11 @@ def convert_genotype_nt_key_encoding(input_file,output_file,nt_map_file,**kwargs
     
     log.info('Loading NT map from file: %s'%nt_map_file)
     with open(nt_map_file, 'rb') as f:
-        snp_map_dict = pickle.load(f,encoding='latin1')
-
+        if version_info[0] < 3:
+            snp_map_dict = pickle.load(f)
+        else:
+            snp_map_dict = pickle.load(f,encoding='latin1')
+            
     log.info('Parsing individual genotype: %s'%input_file)
     h5f = h5py.File(input_file,'r')
     #prepare output file
@@ -543,7 +548,10 @@ def impute(genotype_file,ld_folder,output_file,validation_missing_rate=0.02, min
         #Loading pre-calculated LD matrices (Note that these could perhaps be stored more efficiently.)
         chrom_str = 'Chr%d'%chrom
         with gzip.open('%s/LD'%ld_folder +'_'+chrom_str.lower()+'.pickled.gz','rb') as f:
-            ld_dict = pickle.load(f,encoding='latin1')
+            if version_info[0] < 3:
+                ld_dict = pickle.load(f)
+            else:
+                ld_dict = pickle.load(f,encoding='latin1')
 
         g_cg = g_h5f[chrom_str]
 
@@ -560,14 +568,14 @@ def impute(genotype_file,ld_folder,output_file,validation_missing_rate=0.02, min
         assert len(Ds)==num_snps,'..bug'
         num_snps_imputed = 0
         for snp_i in range(num_snps):
-
+            
             if random.random()<validation_missing_rate and snps[snp_i] !=-9:
                 #Picking random SNPs with genotype information to estimate imputation accuracy.
                 true_snp = snps[snp_i]
                 snps[snp_i] = -9
             else:
                 true_snp=-9
-
+                
             if snps[snp_i] ==-9:
                 #Pull out LD matrix
                 D = Ds[snp_i]
@@ -627,16 +635,17 @@ def impute(genotype_file,ld_folder,output_file,validation_missing_rate=0.02, min
                         imputed_snp=0
                     elif imputed_snp>2:
                         imputed_snp=2
-
-                #Storing imputed genotypes
-                imputed_snps[snp_i] = imputed_snp
+                
                 if true_snp!=-9:
                     #Estimate prediction accuracy
                     pred_snps.append(imputed_snp)
                     true_snps.append(true_snp)
                 else:
-                    #Counting the imputed SNPs with actual missing genotype information
+                    #Counting the imputed SNPs with actual missing genotype information and setting the imputed value
                     num_snps_imputed += 1
+                    #Storing imputed genotypes
+                    imputed_snps[snp_i] = imputed_snp
+                    
         result['chr_stats'][chrom_str] = num_snps_imputed
         log.info('Number of SNPs imputed so far: %d'%num_snps_imputed)
         imputed_snps_dict[chrom_str] = imputed_snps
