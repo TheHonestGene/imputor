@@ -80,6 +80,7 @@ def convert_genotype_to_hdf5(csv_content,output_file,source=None):
         elif num_snps <= 992000:
             version = 'v3'
     f.attrs['version'] = version
+    f.attrs['gender'] = 'm' if 'ChrY' in f.keys() else 'f'
     f.close()
 
 def prepare_hapmap_for_ld_calculation(input_file,output_file):
@@ -332,6 +333,7 @@ def convert_genotype_nt_key_encoding(input_file,output_file,nt_map_file,**kwargs
         result['total_num_parsed_snps'] = tot_num_parsed_snps
         oh5f.attrs['source'] = h5f.attrs['source']
         oh5f.attrs['version'] = h5f.attrs['version']
+        oh5f.attrs['gender']  = h5f.attrs['gender']
     finally:
         h5f.close()
         oh5f.close()
@@ -676,6 +678,7 @@ def impute(genotype_file,ld_folder,output_file,validation_missing_rate=0.02, min
             cg.create_dataset('nts', data=nts,compression='lzf',chunks=True)
         oh5f.attrs['source'] = g_h5f.attrs['source']
         oh5f.attrs['version'] = g_h5f.attrs['version']
+        oh5f.attrs['gender'] = g_h5f.attrs['gender']
         oh5f.close()
     g_h5f.close()
     return result
