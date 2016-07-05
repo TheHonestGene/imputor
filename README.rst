@@ -29,10 +29,10 @@ To get information about the various subcommands the user can run:
 
       imputor -h
 
-Step 1 - Prepare a filtered 1000 genomes HapMap dataset
+Step 1 - Prepare a filtered 1000 genomes dataset
 ===============================================================
 Currently risk prediction only works reliably with European indviduals. 
-So we first need to remove all non-european individuals from the 1000 HapMap dataset 
+So we first need to remove all non-european individuals from the 1000 genomes dataset 
 and also remove the monomorphic SNPs. This can be done with the prepare command. 
 This only has to be done once
 
@@ -58,6 +58,7 @@ The genotypes have to be converted from the NT form to a binary form.
 To speed up this conversion a nucleotide map is constructed. 
 The map is constructed from the HapMap dataset that was created in Step 1. 
 This has to be done once for each genotype version and platform respectively. 
+For each version/platform the steps from now on have a separate pipeline!
 
 .. code:: bash
 
