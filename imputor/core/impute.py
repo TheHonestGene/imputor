@@ -9,6 +9,7 @@ import io
 import logging
 import operator
 import random
+import sn
 import sys
 
 from scipy import linalg 
@@ -16,7 +17,6 @@ import h5py
 
 import numpy as np
 import scipy as sp
-import sn
 
 
 try:
@@ -85,6 +85,7 @@ def convert_genotype_to_hdf5(csv_content, output_file, source=None):
     f.attrs['version'] = version
     f.attrs['gender'] = 'm' if 'ChrY' in f.keys() else 'f'
     f.close()
+
 
 def prepare_hapmap_for_ld_calculation(input_file, output_file):
 
