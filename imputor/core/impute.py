@@ -5,17 +5,13 @@ Code to impute the 23andme genome for the necessary SNPs.
 from functools import reduce  # # py3 does not have it 
 from sys import version_info
 import gzip
-import io
 import logging
 import operator
 import random
-import sn
-import sys
 
 from scipy import linalg 
 import h5py
 
-import numpy as np
 import scipy as sp
 
 
@@ -38,53 +34,7 @@ def _get_chunk_length(data):
     rowsize = data.dtype.itemsize * reduce(operator.mul, data.shape[1:], 1)
     return min(data.shape[0], max(1, (2 ** 20) // rowsize))
 
-def convert_genotype_to_hdf5(csv_content, output_file, source=None):
-    log.info('Convert genotype from text format to HDF5 format %s' % (output_file))
-    # guess the source
-    fd = io.StringIO(csv_content)
-    if source is None:
-        source = sn.guess_source_from_content(csv_content)
-    version = ''
-    snps = sn.parse(fd, source)
-    start_chr = None
-    f = h5py.File(output_file, 'w')
-    pos_snps = []
-    num_snps = 0
-    group = None  # Eliminates syntax error highlight in Eclipse.
-    for snp in snps:
-        num_snps += 1
-        if snp.chromosome != start_chr:
-            if start_chr is not None:
-                sorted(pos_snps, key=lambda x: x[0])
-                positions, ids, snps = zip(*pos_snps)
-                group.create_dataset('ids', (len(positions),), chunks=True, compression='lzf', dtype='S15', data=ids)
-                group.create_dataset('positions', (len(positions),), chunks=True, compression='lzf', dtype='i8', data=positions)
-                group.create_dataset('snps', (len(positions),), chunks=True, compression='lzf', dtype='S2', data=snps)
-                pos_snps = []
-            start_chr = snp.chromosome
-            group = f.create_group("Chr%s" % start_chr)
-        pos_snps.append((int(snp.position), snp.name.encode('utf-8'), snp.genotype.encode('utf-8')))
-    sorted(pos_snps, key=lambda x: x[0])
-    positions, ids, snps = zip(*pos_snps)
-    group.create_dataset('ids', (len(positions),), chunks=True, compression='lzf', dtype='S15', data=ids)
-    group.create_dataset('positions', (len(positions),), chunks=True, compression='lzf', dtype='i8', data=positions)
-    group.create_dataset('snps', (len(positions),), chunks=True, compression='lzf', dtype='S2', data=snps)
-    # find out the version
-    f.attrs['source'] = source
-    # based on https://en.wikipedia.org/wiki/23andMe
-    if source == '23andme':
-        if num_snps <= 576000:
-            version = 'v1'
-        elif num_snps <= 597000:
-            version = 'v2'
-        # TODO current workaround because oauth genotype are > 1000000
-        elif num_snps <= 611000 or num_snps > 1000000:
-            version = 'v4'
-        elif num_snps <= 992000:
-            version = 'v3'
-    f.attrs['version'] = version
-    f.attrs['gender'] = 'm' if 'ChrY' in f.keys() else 'f'
-    f.close()
+
 
 # Do not use this funtion.  An updated function is in kgenome.py
 # def prepare_hapmap_for_ld_calculation(input_file, output_file):
@@ -185,166 +135,6 @@ def convert_genotype_to_hdf5(csv_content, output_file, source=None):
 
 
 
-
-# MAYBE NOT NEEDED if it is done in prepare_haptmap_for_ld_calculate function
-def create_coding_key_map(K_genomes_file, genotype_file, nt_map_file):
-    """
-    Creates a nucleotides map for the reference SNPs
-
-    """
-    log.info('Generating NT map')
-    gf = h5py.File(genotype_file, 'r')
-    kgf = h5py.File(K_genomes_file, 'r')
-    snp_map_dict = {}
-    num_snps = 0
-    for chrom in range(1, 23):
-        log.info('Working on chromosome %d' % chrom)
-        kg_chrom_str = 'chr%d' % chrom
-        chrom_str = 'Chr%d' % chrom
-
-        # Get SNPs from genotype
-        cg = gf[chrom_str]
-        sids = cg['ids'][...]
-        snps = cg['snps'][...]
-        sid_dict = dict(zip(sids, snps))
-
-        # Get SNP IDs from 1K genomes
-        kcg = kgf[kg_chrom_str]
-        kg_sids = kcg['snp_ids'][...]
-
-        # Determine overlap between SNPs..
-        kg_filter = sp.in1d(kg_sids, sids)
-        kg_sids = kg_sids.compress(kg_filter, axis=0)
-        kg_nts = kcg['nts'][...].compress(kg_filter, axis=0)
-        kg_positions = kcg['positions'][...].compress(kg_filter, axis=0)
-
-        # Check that nt are ok in genotype data, otherwise filter.
-        sid_nt_map = {}
-        positions = []
-        ok_sids = []
-        nts = []
-        snp_i = 0
-        for sid, kg_nt, kg_pos in zip(kg_sids, kg_nts, kg_positions):
-            snp = sid_dict[sid]
-            if tuple(kg_nt) not in ambig_nts:
-                # All possible (and allowed) nucleotides strings
-                ntm = {}
-                a = kg_nt[0].decode()
-                b = kg_nt[1].decode()
-                ntm['--'] = -9
-                ntm['-' + a] = -9
-                ntm['-' + b] = -9
-                ntm[a + '-'] = -9
-                ntm[b + '-'] = -9
-                ntm[a + a] = 0
-                ntm[b + a] = 1
-                ntm[a + b] = 1
-                ntm[b + b] = 2
-                if sid in sid_nt_map:
-                    log.warn('Warning %s SNP is duplicate' % sid) 
-                sid_nt_map[sid] = {'ntm':ntm, 'snp_i':snp_i}
-                positions.append(kg_pos)
-                nts.append(kg_nt)
-                ok_sids.append(sid)
-                snp_i += 1
-
-        num_snps += len(sid_nt_map)
-
-        # Sorting SNPs by positions
-        sort_indices = sp.argsort(positions)
-        if not sp.all(sort_indices == sp.arange(len(sort_indices))):
-            positions = positions[sort_indices]
-            ok_sids = ok_sids[sort_indices]
-            nts = nts[sort_indices]
-
-        snp_map_dict[kg_chrom_str] = {'sid_nt_map':sid_nt_map, 'positions':positions, 'nts':nts, 'sids':ok_sids}
-
-    log.info('Found %d SNPs' % num_snps)
-    log.info('Writing to file')
-    with open(nt_map_file, 'wb') as f:
-        pickle.dump(snp_map_dict, f, protocol=2)
-
-
-def convert_genotype_nt_key_encoding(input_file, output_file, nt_map_file, **kwargs):
-    """
-    Convert the SNPs from nt form to numeric form in genotype to be imputed
-    """
-    log_extra = kwargs.get('log_extra', {'progress':0})
-    if 'max_progress' not in log_extra:
-        log_extra['max_progress'] = 100
-    partial_progress_inc = (log_extra['max_progress'] - log_extra['progress']) / 22
-    
-    
-    log.info('Loading NT map from file: %s' % nt_map_file)
-    with open(nt_map_file, 'rb') as f:
-        if version_info[0] < 3:
-            snp_map_dict = pickle.load(f)
-        else:
-            snp_map_dict = pickle.load(f, encoding='latin1')
-            
-    log.info('Parsing individual genotype: %s' % input_file)
-    h5f = h5py.File(input_file, 'r')
-    # prepare output file
-    oh5f = h5py.File(output_file, 'w')
-    try:
-        tot_num_parsed_snps = 0
-        result = {'total_num_parsed_snps':tot_num_parsed_snps, 'chr_stats':{}}
-        for chrom in range(1, 23):
-            log_extra['progress'] += partial_progress_inc
-            log.info('Working on chromosome %s' % chrom, extra=log_extra)
-            kg_chrom_str = 'chr%s' % chrom
-            chrom_str = 'Chr%s' % chrom
-            cg = h5f[chrom_str]
-            sids = cg['ids'][...]
-            raw_snps = cg['snps'][...]
-
-            # Get the nucleotides coding map (from 1K genomes project).
-            chrom_dict = snp_map_dict[kg_chrom_str]
-            sid_nt_map = chrom_dict['sid_nt_map']
-            n = len(sid_nt_map)
-            snps = sp.repeat(-9, n)  # Creating the SNP with fixed size
-            num_not_found = 0
-            num_misunderstood = 0
-            num_parsed_ok = 0
-            for sid, nt in zip(sids, raw_snps):
-                try:
-                    d = sid_nt_map[sid]
-                except Exception:
-                    num_not_found += 1
-                    continue
-                try:
-                    nt_val = d['ntm'][nt.decode()]  # decode required for py3
-                except Exception:
-                    num_misunderstood += 1
-                    continue
-                snps[d['snp_i']] = nt_val
-                num_parsed_ok += 1
-            log.info("%d SNPs weren't found and %d SNPs had unrecognizable nucleotides" % (num_not_found, num_misunderstood))
-            log.info("%d SNPs were parsed ok." % num_parsed_ok)
-            tot_num_parsed_snps += num_parsed_ok
-            result['chr_stats'][chrom_str] = {'num_not_found':num_not_found, 'num_misunderstood':num_misunderstood, 'num_parsed_ok':num_parsed_ok}
-            # Not sure what information we need, perhaps only the SNPs?
-
-            assert len(snps) == len(chrom_dict['sids']) == len(chrom_dict['positions']) == len(chrom_dict['nts']), '..bug'
-            # Store information
-            sids = chrom_dict['sids']
-            positions = chrom_dict['positions']
-            nts = chrom_dict['nts']
-            cg = oh5f.create_group(chrom_str)
-            cg.create_dataset('snps', data=snps, compression='lzf', chunks=True)
-            cg.create_dataset('sids', data=chrom_dict['sids'], compression='lzf', chunks=True)
-            cg.create_dataset('positions', data=chrom_dict['positions'], compression='lzf', chunks=True)
-            cg.create_dataset('nts', data=chrom_dict['nts'], compression='lzf', chunks=True)
-        log.info('In total %d SNPs were parsed.' % tot_num_parsed_snps)
-        result['total_num_parsed_snps'] = tot_num_parsed_snps
-        oh5f.attrs['source'] = h5f.attrs['source']
-        oh5f.attrs['version'] = h5f.attrs['version']
-        oh5f.attrs['gender'] = h5f.attrs['gender']
-    finally:
-        h5f.close()
-        oh5f.close()
-    return result
-    # return genome_dict
 
 
 

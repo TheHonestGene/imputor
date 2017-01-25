@@ -2,19 +2,22 @@
 Methods for analysing 1000 genomes data.
 """
 
-from itertools import *
 import cPickle
-import gzip
 import h5py
 import scipy as sp
  
-
-__updated__ = '2016-10-12'
+try:
+    from itertools import izip as zip
+except ImportError:  # will be 3.x series
+    pass
+    
+__updated__ = '2017-01-25'
 
 ambig_nts = set([('A', 'T'), ('T', 'A'), ('G', 'C'), ('C', 'G')])
 opp_strand_dict = {'A':'T', 'G':'C', 'T':'A', 'C':'G'}
 Kg_nt_decoder = {1:'A', 2:'T', 3:'C', 4:'G', }
 
+ok_nts = ['A', 'C', 'G', 'T']
  
 cloud_dir = '/Users/bjv/Dropbox/Cloud_folder/'
 repos_dir = '/Users/bjv/REPOS/'
@@ -185,7 +188,7 @@ def gen_unrelated_eur_1k_data(input_file='/home/bjarni/TheHonestGene/faststorage
                 raise Exception('Kinship looks wrong?')
         
 
-        nts = sp.array([[nt1, nt2] for nt1, nt2 in izip(ref_nts, alt_nts)])
+        nts = sp.array([[nt1, nt2] for nt1, nt2 in zip(ref_nts, alt_nts)])
 
         print 'Writing to disk'
         cg = oh5f.create_group(chrom_str)
@@ -198,11 +201,6 @@ def gen_unrelated_eur_1k_data(input_file='/home/bjarni/TheHonestGene/faststorage
         oh5f.flush()
         print 'Done writing to disk'
         
-#         centimorgans = h5f[chrom_str]['centimorgans'][...]
-#         cg.create_dataset('centimorgans',data=centimorgans)
-#         
-#         centimorgan_rates = h5f[chrom_str]['centimorgan_rates'][...]
-#         cg.create_dataset('centimorgan_rates',data=centimorgan_rates)
         
     oh5f.close()
     h5f.close()
@@ -220,7 +218,6 @@ def gen_1k_test_genotypes(kg_file=cloud_dir + 'Data/1Kgenomes/1K_genomes_v3_EUR_
     f.close()
     
     h5f = h5py.File(kg_file)
-    kg_indivs = h5f['indiv_ids'][...]
     chromosomes = range(1, 23) 
     
     
@@ -290,76 +287,7 @@ def gen_1k_test_genotypes(kg_file=cloud_dir + 'Data/1Kgenomes/1K_genomes_v3_EUR_
 
         out_h5f.close()
     h5f.close()
-        # return genome_dict        
-
-
-
-# Coding key
-# def prepare_nt_coding_key(K_genomes_snps_map, indiv_genot_file, nt_map_file):
-#     """
-#     Determines the nucleotide coding for the genotype using the 1K genome  the 10KUK
-#     """
-#     gf = h5py.File(indiv_genot_file,'r')
-#     kgf = h5py.File(K_genomes_snps_map,'r')
-#     chromosomes = range(1,23) 
-#     snp_map_dict = {}
-#     num_snps = 0
-#     for chrom in chromosomes:
-#         print 'Working on chromosome %d'%chrom
-#         kg_chrom_str = 'chr%d'%chrom
-#         chrom_str = 'Chr%d'%chrom
-#         
-#         #Get SNPs from genotype
-#         cg = gf[chrom_str]
-#         sids = cg['ids'][...]
-#         snps = cg['snps'][...]
-#         sid_dict = dict(zip(sids, snps))
-#         
-#         #Get SNP IDs from 1K genomes
-#         kcg = kgf[kg_chrom_str]
-#         kg_sids = kcg['snp_ids'][...]
-#         
-#         #Determine overlap between SNPs..
-#         kg_filter = sp.in1d(kg_sids,sids)
-#         kg_sids = kg_sids[kg_filter]
-#         kg_nts = (kcg['nts'][...])[kg_filter]
-#         kg_positions = (kcg['positions'][...])[kg_filter]
-#         
-#         #Check that nt are ok in genotype data, otherwise filter.
-#         sid_nt_map = {}
-#         positions = []
-#         ok_sids = []
-#         nts = []
-#         snp_i = 0
-#         for sid, kg_nt, kg_pos in izip(kg_sids, kg_nts, kg_positions):
-#             snp = sid_dict[sid]
-#             if tuple(kg_nt) not in ambig_nts:
-#                 # All possible (and allowed) nucleotides strings 
-#                 ntm = {}
-#                 ntm['--']=-9
-#                 ntm['-'+kg_nt[0]]=-9
-#                 ntm['-'+kg_nt[1]]=-9
-#                 ntm[kg_nt[0]+'-']=-9
-#                 ntm[kg_nt[1]+'-']=-9
-#                 ntm[kg_nt[0]+kg_nt[0]]=0
-#                 ntm[kg_nt[1]+kg_nt[0]]=1
-#                 ntm[kg_nt[0]+kg_nt[1]]=1
-#                 ntm[kg_nt[1]+kg_nt[1]]=2
-#                 sid_nt_map[sid]={'ntm':ntm, 'snp_i':snp_i}
-#                 positions.append(kg_pos)
-#                 nts.append(kg_nt)
-#                 ok_sids.append(sid)
-#                 snp_i += 1
-#         
-#         num_snps += len(sid_nt_map)
-#         snp_map_dict[kg_chrom_str]={'sid_nt_map':sid_nt_map, 'positions':positions, 'nts':nts, 'sids':ok_sids}
-#     
-#     print 'Found %d SNPs'%num_snps
-#     print 'Writing to file'
-#     f = open(nt_map_file, 'wb')
-#     cPickle.dump(snp_map_dict, f, protocol=2)
-#     f.close()
-#     return snp_map_dict
+    
         
 # For debugging purposes
 if __name__ == '__main__':        

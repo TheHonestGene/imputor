@@ -12,6 +12,9 @@ import sys
 import argparse
 import logging, logging.config
 from imputor.core import impute as imp
+from imputor.core import genotype_parser as geno_par
+from imputor.core import nt_coding_key as coding_key
+from imputor.core import kgenome
 
 LOGGING = {
     'version': 1,
@@ -35,7 +38,7 @@ LOGGING = {
         },
     },
     'root': {
-        'handlers': ['stdout','stderr'],
+        'handlers': ['stdout', 'stderr'],
         'level': 'INFO',
     },
 }
@@ -45,42 +48,42 @@ log = logging.getLogger()
 
 def get_parser():
     parser = argparse.ArgumentParser()
-    subparsers = parser.add_subparsers(title='subcommands',description='Choose a command to run',help='Following commands are supported')
+    subparsers = parser.add_subparsers(title='subcommands', description='Choose a command to run', help='Following commands are supported')
 
-    prepare_hapmap_parser = subparsers.add_parser('prepare',help='Prepare a HapMap dataset to be used for imputation by removing related individuals and monomorphic SNPs. ')
+    prepare_hapmap_parser = subparsers.add_parser('prepare', help='Prepare a HapMap dataset to be used for imputation by removing related individuals and monomorphic SNPs. ')
     prepare_hapmap_parser.add_argument(dest="input_file", help="Original HapMap file (in HDF5 format)")
     prepare_hapmap_parser.add_argument(dest="output_file", help="Name of the output file")
     prepare_hapmap_parser.set_defaults(func=prepare)
 
-    parse_genotype_parser = subparsers.add_parser('parse',help='Parses a genotype file in text/csv format and converst it into an HDF5 file')
+    parse_genotype_parser = subparsers.add_parser('parse', help='Parses a genotype file in text/csv format and converst it into an HDF5 file')
     parse_genotype_parser.add_argument(dest="input_file", help="Original genotype file (text/csv format)")
     parse_genotype_parser.add_argument(dest="output_file", help="Name of the output file")
     parse_genotype_parser.set_defaults(func=parse_genotype)
 
-    nt_map_parser = subparsers.add_parser('nt_map',help='Create NT encoding map that is used when converting a genotype from NT format to binary format (see convert subcommand)')
+    nt_map_parser = subparsers.add_parser('nt_map', help='Create NT encoding map that is used when converting a genotype from NT format to binary format (see convert subcommand)')
     nt_map_parser.add_argument(dest="hapmap_file", help="HapMap dataset that was created with the 'prepare' subcommand")
     nt_map_parser.add_argument(dest="genotype_file", help="The genotype file to be used for subsetting SNPs")
     nt_map_parser.add_argument(dest="output_file", help="Name of the output file for the map")
     nt_map_parser.set_defaults(func=create_nt_map)
 
-    ld_parser = subparsers.add_parser('calc_ld',help='Calculate LD from Hapmap dataset used later for imputation')
-    ld_parser.add_argument("-w", "--window_size", dest="window_size", help="Window size (default: 40)",type=float,default=40)
+    ld_parser = subparsers.add_parser('calc_ld', help='Calculate LD from Hapmap dataset used later for imputation')
+    ld_parser.add_argument("-w", "--window_size", dest="window_size", help="Window size (default: 40)", type=float, default=40)
     ld_parser.add_argument(dest="hapmap_file", help="Hapmap file that was generated with the 'prepare' subcommand ")
     ld_parser.add_argument(dest="nt_map_file", help="File containing the NT encoding map generated with the 'nt_map' subcommand")
     ld_parser.add_argument(dest="output_folder", help="Name of the output folder")
     ld_parser.set_defaults(func=calc_ld)
 
-    convert_hapmap_parser = subparsers.add_parser('convert',help='Convert a genotype that uses nucleotide encoding into a binary format (0, 1 and 2).')
+    convert_hapmap_parser = subparsers.add_parser('convert', help='Convert a genotype that uses nucleotide encoding into a binary format (0, 1 and 2).')
     convert_hapmap_parser.add_argument(dest="input_file", help="Genotype file to be converted (in HDF5 format)")
     convert_hapmap_parser.add_argument(dest="output_file", help="Name of the output file")
     convert_hapmap_parser.add_argument(dest="nt_map_file", help="File containing the NT encoding map generated with the 'nt_map' subcommand")
     convert_hapmap_parser.set_defaults(func=convert)
 
-    imputation_parser = subparsers.add_parser('impute',help='Impute missing calls in a genotype using a HapMap dataset')
-    imputation_parser.add_argument('-r','--missing_rate',dest="validation_missing_rate", help="The fraction of SNPs used to estimate the imputation accuracy (default: 0.02)",type=float,default=0.02)
-    imputation_parser.add_argument('-t','--min_ld_r2_thres',dest="min_ld_r2_thres", help="A minimum LD r2 value for SNPs to be used to impute from."
-                                                                                         "SNPs with r2 values close to 0 are effectively inconsequential for the imputation and can be left out (which also speeds up the imputation) (default: 0.02)",type=float,default=0.02)
-    imputation_parser.add_argument(dest="genotype_file", help="The binary encoded genotype file to be imputed (generated by the 'convert' subcommand)" )
+    imputation_parser = subparsers.add_parser('impute', help='Impute missing calls in a genotype using a HapMap dataset')
+    imputation_parser.add_argument('-r', '--missing_rate', dest="validation_missing_rate", help="The fraction of SNPs used to estimate the imputation accuracy (default: 0.02)", type=float, default=0.02)
+    imputation_parser.add_argument('-t', '--min_ld_r2_thres', dest="min_ld_r2_thres", help="A minimum LD r2 value for SNPs to be used to impute from."
+                                                                                         "SNPs with r2 values close to 0 are effectively inconsequential for the imputation and can be left out (which also speeds up the imputation) (default: 0.02)", type=float, default=0.02)
+    imputation_parser.add_argument(dest="genotype_file", help="The binary encoded genotype file to be imputed (generated by the 'convert' subcommand)")
     imputation_parser.add_argument(dest="ld_folder", help="The LD folder containing the ld files that were generated with the 'calc_ld' subcommand")
     imputation_parser.add_argument(dest="output_file", help="Name of the output file (i.e. imputed_23andme.hdf5)")
     imputation_parser.set_defaults(func=impute)
@@ -107,26 +110,26 @@ def main():
 
 
 def prepare(args):
-    imp.prepare_hapmap_for_ld_calculation(args['input_file'],args['output_file'])
+    kgenome.gen_unrelated_eur_1k_data(args['input_file'], args['output_file'])
 
 def parse_genotype(args):
-    with open(args['input_file'],'r',encoding='utf-8') as f:
+    with open(args['input_file'], 'r', encoding='utf-8') as f:
         data = f.read()
     csv_content = data    
-    imp.convert_genotype_to_hdf5(data,args['output_file'])
+    geno_par.convert_genotype_to_hdf5(csv_content, args['output_file'])
 
 def create_nt_map(args):
-    imp.create_coding_key_map(args['hapmap_file'],args['genotype_file'],args['output_file'])
+    coding_key.create_coding_key_map(args['hapmap_file'], args['genotype_file'], args['output_file'])
 
 def calc_ld(args):
-    imp.calculate_ld(args['nt_map_file'],args['hapmap_file'],args['output_folder'],args['window_size'])
+    imp.calculate_ld(args['nt_map_file'], args['hapmap_file'], args['output_folder'], args['window_size'])
 
 def convert(args):
-    imp.convert_genotype_nt_key_encoding(args['input_file'],args['output_file'],args['nt_map_file'])
+    geno_par.convert_genotype_nt_key_encoding(args['input_file'], args['output_file'], args['nt_map_file'])
 
 def impute(args):
-    imp.impute(args['genotype_file'],args['ld_folder'],args['output_file'],args['validation_missing_rate'],args['min_ld_r2_thres'])
+    imp.impute(args['genotype_file'], args['ld_folder'], args['output_file'], args['validation_missing_rate'], args['min_ld_r2_thres'])
 
 
-if __name__=='__main__':
+if __name__ == '__main__':
     sys.exit(main())
