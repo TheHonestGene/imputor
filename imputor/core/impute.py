@@ -36,108 +36,6 @@ def _get_chunk_length(data):
 
 
 
-# Do not use this funtion.  An updated function is in kgenome.py
-# def prepare_hapmap_for_ld_calculation(input_file, output_file):
-# 
-#     """
-#     Removes non-europeans and related individuals and monomorphic or unknown SNPs
-#     """
-#     h5f = h5py.File(input_file, 'r')
-#     eur_filter = h5f['indivs']['continent'][...] == b'EUR'
-#     num_indivs = sp.sum(eur_filter)
-#     K = sp.zeros((num_indivs, num_indivs), dtype='single')
-#     num_snps = 0
-#     log.info('Calculating kinship')
-#     for chrom in range(1, 23):
-#         if chrom == 23:
-#             chrom = 'X'
-#         log.info('Working on Chromosome %s' % chrom)
-#         chrom_str = 'chr%s' % chrom
-#         log.debug('Loading SNPs')
-#         snps = h5f[chrom_str]['calldata/snps'][...]
-#         # filter non-europeans.
-#         log.debug('Filtering non-European individuals')
-#         snps = snps.compress(eur_filter, axis=1)
-#         log.debug('Filtering monomorphic SNPs')
-#         snp_stds = sp.std(snps, 1)
-#         mono_morph_filter = snp_stds > 0
-#         snps = snps.compress(mono_morph_filter, axis=0)
-#         snp_stds = snp_stds.compress(mono_morph_filter)
-#         log.debug('Normalizing SNPs')
-#         snp_means = sp.mean(snps, 1)
-#         norm_snps = (snps - snp_means[sp.newaxis].T) / snp_stds[sp.newaxis].T
-#         log.debug('Updating kinship')
-#         K += sp.dot(norm_snps.T, norm_snps)
-#         num_snps += len(norm_snps)
-#     K = K / float(num_snps)
-#     log.info('Kinship calculation done using %d SNPs' % num_snps)
-# 
-#     # Filter individuals
-#     log.info('Filtering individuals')
-#     keep_indiv_set = set(range(num_indivs))
-#     for i in range(num_indivs):
-#         if i in keep_indiv_set:
-#             for j in range(i + 1, num_indivs):
-#                 if K[i, j] > 0.05:
-#                     if j in keep_indiv_set:
-#                         keep_indiv_set.remove(j)
-#     keep_indivs = list(keep_indiv_set)
-#     keep_indivs.sort()
-#     log.info('Retained %d individuals' % len(keep_indivs))
-# 
-#     # Store in new file
-#     log.info('Now storing data.')
-#     oh5f = h5py.File(output_file, 'w')
-#     indiv_ids = h5f['indivs']['indiv_ids'][eur_filter]
-#     indiv_ids = indiv_ids[keep_indivs]
-#     oh5f.create_dataset('indiv_ids', data=indiv_ids)
-#     for chrom in range(1, 23):
-#         if chrom == 23:
-#             chrom = 'X'
-#         log.info('Working on Chromosome %s' % chrom)
-#         chrom_str = 'chr%s' % chrom
-#         snps = h5f[chrom_str]['calldata/snps'][...]
-#         # filter non-europeans.
-#         snps = snps.compress(eur_filter, axis=1)
-#         # Filter related
-#         snps = snps.compress(keep_indivs, axis=1)
-#         # filter monomorphic SNPs
-#         snp_stds = sp.std(snps, 1)
-#         mono_morph_filter = snp_stds > 0
-#         snps = snps.compress(mono_morph_filter, axis=0)
-#         # filter SNPs w missing NT values
-#         length = len(h5f[chrom_str]['variants/REF'])
-#         nts = np.hstack((h5f[chrom_str]['variants/REF'][:].reshape(length, 1), h5f[chrom_str]['variants/ALT'][:].reshape(length, 1)))
-#         nts = nts.compress(mono_morph_filter, axis=0)
-# 
-#         cg = oh5f.create_group(chrom_str)
-#         snp_chunk_length = _get_chunk_length(snps)
-#         cg.create_dataset('snps', data=snps, compression='lzf', chunks=(snp_chunk_length, snps.shape[1]))
-# 
-#         snp_stds = snp_stds.compress(mono_morph_filter)
-#         snp_means = sp.mean(snps, 1)
-#         snps_means_trans = snp_means[sp.newaxis].T
-#         snps_stds_trans = snp_stds[sp.newaxis].T
-#         cg.create_dataset('snp_means', data=snps_means_trans, compression='lzf', chunks=(_get_chunk_length(snps_means_trans), 1))
-#         cg.create_dataset('snp_stds', data=snps_stds_trans, compression='lzf', chunks=(_get_chunk_length(snps_stds_trans), 1))
-# 
-#         snp_ids = h5f[chrom_str]['variants/ID'][...]
-#         snp_ids = snp_ids.compress(mono_morph_filter)
-#         cg.create_dataset('snp_ids', data=snp_ids, compression='lzf', chunks=(_get_chunk_length(snp_ids),))
-# 
-#         positions = h5f[chrom_str]['variants/POS'][...]
-#         positions = positions.compress(mono_morph_filter)
-#         cg.create_dataset('positions', data=positions, compression='lzf', chunks=(_get_chunk_length(positions),))
-#         cg.create_dataset('nts', data=nts, compression='lzf', chunks=(_get_chunk_length(nts), 2))
-#     log.info('File successfully stored')
-#     oh5f.close()
-#     h5f.close()
-
-
-
-
-
-
 
 def calculate_ld(nt_map_file, kgenomes_file, output_folder, window_size):
     """
@@ -201,7 +99,8 @@ def calculate_ld(nt_map_file, kgenomes_file, output_folder, window_size):
             pickle.dump(ld_dict, f, protocol=2)
 
 
-def impute(genotype_file, ld_folder, output_file, validation_missing_rate=0.02, min_ld_r2_thres=0.02, **kwargs):
+def impute(genotype_file, ld_folder, output_file, validation_missing_rate=0.02, min_ld_r2_thres=0.02,
+           regularization_factor=0.02, **kwargs):
     """
     Impute the missing SNPs from the reference genome dataset into a given genotype
 
@@ -211,7 +110,11 @@ def impute(genotype_file, ld_folder, output_file, validation_missing_rate=0.02, 
     min_ld_r2_thres: A minimum LD r2 value for SNPs to be used to impute from.  SNPs with large R2 are more informative for the imputation.
                      SNPs with r2 values close to 0 are effectively inconsequential for the imputation and can be left out
                      (which also speeds up the imputation).  Default is 0.02.
+                     
+    regularization_factor: It is a number bewtween 0 and 1, but should probably generally be small 0-0.1.  It effectively accounts 
+                           for genotype and LD estimate errors, and increases the likelyhood that the LD matrix is invertible.
     """
+    
     log.info('Starting imputation for %s using a missing rate of %s and minimum ld threshold of %s' % (genotype_file, validation_missing_rate, min_ld_r2_thres));
     g_h5f = h5py.File(genotype_file, 'r')
     imputed_snps_dict = {}
@@ -298,7 +201,7 @@ def impute(genotype_file, ld_folder, output_file, validation_missing_rate=0.02, 
                 ok_D_i = D_i[ok_filter]
 
                 # Impute genotype.
-                ok_D_inv = linalg.pinv(0.95 * ok_D + 0.05 * sp.eye(len(ok_D)))
+                ok_D_inv = linalg.pinv((1 - regularization_factor) * ok_D + regularization_factor * sp.eye(len(ok_D)))  
                 if sp.any(sp.isnan(ok_D_inv)):
                     log.warn('Matrix inversion failed!!')
                     log.warn('Setting SNP genotype to 1')
@@ -366,20 +269,26 @@ def impute(genotype_file, ld_folder, output_file, validation_missing_rate=0.02, 
     g_h5f.close()
     return result
 
-# def window_size_plot():
+
+
+# def _window_size_plot_():
+#     """
+#     For debugging purposes
+#     """
+#     import pylab
 #     pred_r2s = []
-#     window_sizes = [4,10,20,30,40,50,60,70,80,90,100]
+#     window_sizes = [4, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100]
 #     for window_size in window_sizes:
 # #         calc_ld(repos_dir+'imputor/tests/data/test_out_genotype.hdf5', repos_dir+'imputor/tests/data/ld_dict',window_size=window_size)
 #         d = impute_23_and_genome(window_size=window_size)
 #         pred_r2s.append(d['pred_r2'])
 #     print pred_r2s
 #     print window_sizes
-#     
-#     pylab.plot(window_sizes,pred_r2s,alpha=0.6)
+#      
+#     pylab.plot(window_sizes, pred_r2s, alpha=0.6)
 #     pylab.ylabel('Prediction accuracy (R2)')
 #     pylab.xlabel('Imputation LD window-size')
-#     pylab.savefig(cloud_dir+'tmp/tmp.png')
+#     pylab.savefig(cloud_dir + 'tmp/tmp.png')
 
 
     
