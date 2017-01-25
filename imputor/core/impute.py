@@ -192,9 +192,7 @@ def impute(genotype_file, ld_folder, output_file, validation_missing_rate=0.02, 
                 ld_filter = (D_i ** 2 > min_ld_r2_thres)
                 if sp.any(ok_filter * ld_filter):
                     ok_filter = ok_filter * ld_filter
-
                 assert sp.sum(ok_filter) < len(reg_snps), '..bug'
-
 
                 # Filtering the LD matrix.
                 ok_D = (D[ok_filter])[:, ok_filter]
@@ -212,6 +210,7 @@ def impute(genotype_file, ld_folder, output_file, validation_missing_rate=0.02, 
                     ok_reg_snp_means = reg_snp_means[ok_filter]
                     ok_reg_snp_stds = reg_snp_stds[ok_filter]
                     ok_reg_norm_snps = (ok_reg_snps - ok_reg_snp_means) / ok_reg_snp_stds
+
 #                     imputed_snp = sp.dot(ok_D_i,sp.dot(ok_D_inv,ok_reg_snps))  #A bug?
                     imputed_snp = sp.dot(ok_D_i, sp.dot(ok_D_inv, ok_reg_norm_snps))
 
@@ -219,6 +218,8 @@ def impute(genotype_file, ld_folder, output_file, validation_missing_rate=0.02, 
                     snp_mean = snp_means[snp_i][0]
                     snp_std = snp_stds[snp_i][0]
                     imputed_snp = imputed_snp * snp_std + snp_mean
+                    
+                    # Hard boundary threholds, enforced to avoid "too influential" bad SNPs.
                     if imputed_snp < 0:
                         imputed_snp = 0
                     elif imputed_snp > 2:
