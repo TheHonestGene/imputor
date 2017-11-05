@@ -2,14 +2,14 @@
 Code to impute the 23andme genome for the necessary SNPs.
 
 """
-from functools import reduce  # # py3 does not have it 
+from functools import reduce  # # py3 does not have it
 from sys import version_info
 import gzip
 import logging
 import operator
 import random
 
-from scipy import linalg 
+from scipy import linalg
 import h5py
 
 import scipy as sp
@@ -110,11 +110,11 @@ def impute(genotype_file, ld_folder, output_file, validation_missing_rate=0.02, 
     min_ld_r2_thres: A minimum LD r2 value for SNPs to be used to impute from.  SNPs with large R2 are more informative for the imputation.
                      SNPs with r2 values close to 0 are effectively inconsequential for the imputation and can be left out
                      (which also speeds up the imputation).  Default is 0.02.
-                     
-    regularization_factor: It is a number bewtween 0 and 1, but should probably generally be small 0-0.1.  It effectively accounts 
+
+    regularization_factor: It is a number bewtween 0 and 1, but should probably generally be small 0-0.1.  It effectively accounts
                            for genotype and LD estimate errors, and increases the likelyhood that the LD matrix is invertible.
     """
-    
+
     log.info('Starting imputation for %s using a missing rate of %s and minimum ld threshold of %s' % (genotype_file, validation_missing_rate, min_ld_r2_thres));
     g_h5f = h5py.File(genotype_file, 'r')
     imputed_snps_dict = {}
@@ -122,12 +122,12 @@ def impute(genotype_file, ld_folder, output_file, validation_missing_rate=0.02, 
     pred_snps = []
     true_snps = []
     result = {'chr_stats':{}}
-    
+
     log_extra = kwargs.get('log_extra', {'progress':0})
     if 'max_progress' not in log_extra:
         log_extra['max_progress'] = 100
     partial_progress_inc = (log_extra['max_progress'] - log_extra['progress']) / 22
-    
+
     for chrom in range(1, 23):
         log_extra['progress'] += partial_progress_inc
         log.info('Working on Chromosome %d' % chrom, extra=log_extra)
@@ -155,14 +155,14 @@ def impute(genotype_file, ld_folder, output_file, validation_missing_rate=0.02, 
         assert len(Ds) == num_snps, '..bug'
         num_snps_imputed = 0
         for snp_i in range(num_snps):
-            
+
             if random.random() < validation_missing_rate and snps[snp_i] != -9:
                 # Picking random SNPs with genotype information to estimate imputation accuracy.
                 true_snp = snps[snp_i]
                 snps[snp_i] = -9
             else:
                 true_snp = -9
-                
+
             if snps[snp_i] == -9:
                 # Pull out LD matrix
                 D = Ds[snp_i]
@@ -199,7 +199,7 @@ def impute(genotype_file, ld_folder, output_file, validation_missing_rate=0.02, 
                 ok_D_i = D_i[ok_filter]
 
                 # Impute genotype.
-                ok_D_inv = linalg.pinv((1 - regularization_factor) * ok_D + regularization_factor * sp.eye(len(ok_D)))  
+                ok_D_inv = linalg.pinv((1 - regularization_factor) * ok_D + regularization_factor * sp.eye(len(ok_D)))
                 if sp.any(sp.isnan(ok_D_inv)):
                     log.warn('Matrix inversion failed!!')
                     log.warn('Setting SNP genotype to 1')
@@ -218,13 +218,13 @@ def impute(genotype_file, ld_folder, output_file, validation_missing_rate=0.02, 
                     snp_mean = snp_means[snp_i][0]
                     snp_std = snp_stds[snp_i][0]
                     imputed_snp = imputed_snp * snp_std + snp_mean
-                    
+
                     # Hard boundary threholds, enforced to avoid "too influential" bad SNPs.
                     if imputed_snp < 0:
                         imputed_snp = 0
                     elif imputed_snp > 2:
                         imputed_snp = 2
-                
+
                 if true_snp != -9:
                     # Estimate prediction accuracy
                     pred_snps.append(imputed_snp)
@@ -234,7 +234,7 @@ def impute(genotype_file, ld_folder, output_file, validation_missing_rate=0.02, 
                     num_snps_imputed += 1
                     # Storing imputed genotypes
                     imputed_snps[snp_i] = imputed_snp
-                    
+
         result['chr_stats'][chrom_str] = num_snps_imputed
         log.info('Number of SNPs imputed so far: %d' % num_snps_imputed)
         imputed_snps_dict[chrom_str] = imputed_snps
@@ -253,7 +253,7 @@ def impute(genotype_file, ld_folder, output_file, validation_missing_rate=0.02, 
             g_cg = g_h5f[chrom_str]
             imputed_snps = imputed_snps_dict[chrom_str]
 
-            # Loading data 
+            # Loading data
             sids = g_cg['sids'][...]
             nts = g_cg['nts'][...]
             positions = g_cg['positions'][...]
@@ -285,28 +285,28 @@ def impute(genotype_file, ld_folder, output_file, validation_missing_rate=0.02, 
 #         pred_r2s.append(d['pred_r2'])
 #     print pred_r2s
 #     print window_sizes
-#      
+#
 #     pylab.plot(window_sizes, pred_r2s, alpha=0.6)
 #     pylab.ylabel('Prediction accuracy (R2)')
 #     pylab.xlabel('Imputation LD window-size')
 #     pylab.savefig(cloud_dir + 'tmp/tmp.png')
 
 
-    
+
 # For debugging purposes
 # if __name__=='__main__':
 #     Filter related indivs
 #     gen_unrelated_eur_1k_data()
-#     
+#
 #     prepare_nt_coding_key(cloud_dir+'Data/1Kgenomes/1K_genomes_v3_EUR_unrelated2.hdf5',
 #                           repos_dir+'imputor/tests/data/test_genotype.hdf5',
 #                           cloud_dir+'tmp/nt_map.pickled')
 #     parse_hdf5_genotype(repos_dir+'imputor/tests/data/test_genotype.hdf5',
 #                          cloud_dir+'tmp/nt_map.pickled',
 #                          repos_dir+'imputor/tests/data/test_out_genotype.hdf5')
-#     
+#
 #     window_size = int(sys.argv[1])
-#     
+#
 #     calc_ld(cloud_dir+'tmp/nt_map.pickled', repos_dir+'imputor/tests/data/ld_dict',window_size=window_size)
 #     impute_23_and_genome(genotype_file=cloud_dir+'tmp/1k_ind_4.hdf5',window_size=window_size)
 #      window_size_plot()
