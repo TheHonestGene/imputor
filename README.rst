@@ -2,6 +2,12 @@
 Imputor: Fast imputation library
 **********************************
 
+.. image:: https://travis-ci.org/TheHonestGene/imputor.svg?branch=master
+   :target: https://travis-ci.org/TheHonestGene/imputor
+
+.. image:: https://coveralls.io/repos/github/TheHonestGene/imputor/badge.svg?branch=master
+   :target: https://coveralls.io/github/TheHonestGene/imputor?branch=master
+
 Imputor is a very simple library for imputing missing variants 
 in a genotype dataset (i.e. 23andMe)
 
