@@ -36,8 +36,11 @@ setup(
         "numpy",
         "scipy",
         "h5py",
+        "snpy==0.1",
         "matplotlib >= 1.4.3"
+
     ],
+    dependency_links=['https://github.com/timeu/snpy/tarball/master#egg=snpy-0.1'],
     setup_requires=[
         "pytest-runner"
     ],

@@ -171,10 +171,12 @@ def impute(genotype_file, ld_folder, output_file, validation_missing_rate=0.02, 
                 boundaries = ld_dict['boundaries'][snp_i]
                 # start_i = max(0,snp_i-window_size/2)
                 # end_i = min(snp_i+(window_size/2)+1,num_snps)
-                start_i = boundaries[0]
-                end_i = boundaries[1]
+                # TODO workaround until https://github.com/TheHonestGene/imputor/issues/4 is fixed
+                start_i = int(boundaries[0])
+                end_i = int(boundaries[1])
 
                 # Obtaining the SNPs in the region, on which the imputation (together with LD) is based.
+
                 reg_snps = snps[start_i:end_i]
                 reg_snp_means = snp_means[start_i:end_i]
                 reg_snp_means = reg_snp_means.flatten()
